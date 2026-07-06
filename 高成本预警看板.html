@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>转转二手车-高成本预警看板</title>
+  <script src="./xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f1ea;
+      --panel: rgba(255,255,255,.94);
+      --ink: #241b15;
+      --muted: #77695d;
+      --line: #e7dbce;
+      --accent: #bb4d2f;
+      --accent-soft: #f8e6df;
+      --green: #166534;
+      --orange: #b45309;
+      --shadow: 0 18px 45px rgba(54, 33, 20, .10);
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font: 14px/1.6 "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(187, 77, 47, .15), transparent 24%),
+        radial-gradient(circle at top right, rgba(248, 210, 166, .30), transparent 22%),
+        linear-gradient(180deg, #fffdfa 0, var(--bg) 280px);
+    }
+    .shell {
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .hero-card, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .hero-card {
+      flex: 1;
+      padding: 22px 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.2;
+      letter-spacing: .01em;
+    }
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(187, 77, 47, .08), rgba(248, 230, 223, .65));
+      color: #5c4639;
+      font-size: 13px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    .action-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 14px;
+      height: 46px;
+      min-width: 120px;
+      padding: 0 14px;
+      font: inherit;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .metric {
+      padding: 16px 18px;
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .metric .value {
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+    .history-panel {
+      padding: 18px;
+    }
+    .fixed-card {
+      height: 420px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .scroll-body {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .panel-title h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .panel-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .history-chart {
+      display: grid;
+      gap: 10px;
+    }
+    .history-row {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 112px;
+      gap: 10px;
+      align-items: center;
+    }
+    .history-date {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .history-bar-track {
+      height: 12px;
+      border-radius: 999px;
+      background: #f2e6d9;
+      overflow: hidden;
+      position: relative;
+    }
+    .history-bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #d66d4f, #bb4d2f);
+    }
+    .history-meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .history-list {
+      display: grid;
+      gap: 10px;
+    }
+    .frequency-chart {
+      display: grid;
+      gap: 12px;
+    }
+    .frequency-item {
+      display: grid;
+      gap: 6px;
+    }
+    .frequency-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+    }
+    .frequency-name {
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .frequency-count {
+      white-space: nowrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .frequency-track {
+      height: 10px;
+      border-radius: 999px;
+      background: #f2e6d9;
+      overflow: hidden;
+    }
+    .frequency-bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #d98e3d, #bb4d2f);
+    }
+    .frequency-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .history-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,.9);
+    }
+    .history-card strong {
+      display: block;
+      font-size: 14px;
+    }
+    .history-card .mini {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #f8ece3;
+      color: #8f3d22;
+      font-size: 11px;
+      max-width: 100%;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px 0;
+    }
+    .seg-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .seg {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .seg.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .toolbar-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .table-wrap {
+      padding: 14px 18px 18px;
+      overflow: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 1340px;
+    }
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      background: rgba(255,255,255,.82);
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #fbf8f4;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+    }
+    th[data-key="linkAction"] {
+      width: 118px;
+    }
+    th[data-key="riskReason"] {
+      width: 210px;
+    }
+    th.dragging { opacity: .45; }
+    tr:hover td { background: #fffdfa; }
+    .hint {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+      color: #a08d7c;
+      font-weight: 400;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status-投放中 {
+      color: var(--green);
+      background: #dcfce7;
+    }
+    .status-疑似拉停 {
+      color: var(--orange);
+      background: #ffedd5;
+    }
+    .copyable {
+      color: #175cd3;
+      cursor: pointer;
+      text-decoration: underline dotted;
+      text-underline-offset: 2px;
+    }
+    .link-actions {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .mini-btn {
+      border: 1px solid #d9cbbb;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .mini-btn:hover {
+      background: #f9f5f1;
+    }
+    details.reason {
+      min-width: 160px;
+    }
+    details.reason summary {
+      list-style: none;
+      cursor: pointer;
+      color: #8f3d22;
+      font-size: 12px;
+      font-weight: 700;
+      user-select: none;
+    }
+    details.reason summary::-webkit-details-marker {
+      display: none;
+    }
+    .reason-body {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #fbf3ed;
+      color: #6f4a39;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .empty {
+      padding: 36px 18px 44px;
+      text-align: center;
+      color: var(--muted);
+    }
+    @media (max-width: 1180px) {
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero { flex-direction: column; }
+      .hero-actions { width: 100%; }
+      .action-btn { width: 100%; }
+    }
+    @media (max-width: 720px) {
+      .summary { grid-template-columns: 1fr; }
+      .shell { padding: 18px 12px 28px; }
+      h1 { font-size: 24px; }
+      .history-row { grid-template-columns: 78px minmax(0, 1fr) 86px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <div class="hero-card">
+        <h1>高成本预警</h1>
+        <div class="sub" id="generatedAt"></div>
+        <div class="note">
+          口径说明：仅统计投放中、疑似拉停且累计消耗 ≥ 300 的笔记。命中规则有两类：1. 行动按钮点击量 = 0；2. 行动按钮点击成本 > 同选题分类下投放中笔记的中位成本 × 1.5。分类基准按各自选题分类单独计算，不跨分类混算。
+        </div>
+      </div>
+      <div class="hero-actions">
+        <button class="action-btn" id="exportBtn">导出 Excel</button>
+        <button class="action-btn" id="resetColumnsBtn">重置表头</button>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="panel metric">
+        <div class="label">预警总数</div>
+        <div class="value" id="metricCount">0</div>
+      </div>
+      <div class="panel metric">
+        <div class="label">投放中 / 疑似拉停</div>
+        <div class="value" id="metricStatus">0 / 0</div>
+      </div>
+      <div class="panel metric">
+        <div class="label">预警总消耗</div>
+        <div class="value" id="metricSpend">¥0.00</div>
+      </div>
+      <div class="panel metric">
+        <div class="label">数据日期范围</div>
+        <div class="value" id="metricDate">-</div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="panel fixed-card">
+        <div class="toolbar">
+          <div class="seg-row" id="filters">
+            <button class="seg active" data-filter="all">全部预警</button>
+            <button class="seg" data-filter="投放中">投放中</button>
+            <button class="seg" data-filter="疑似拉停">疑似拉停</button>
+          </div>
+          <div class="toolbar-meta" id="tableMeta">表头支持点击排序、拖动换位；链接列已收窄为轻量操作按钮；触发原因轻触展开。</div>
+        </div>
+        <div class="table-wrap">
+          <table id="riskTable"></table>
+          <div class="empty" id="emptyState" hidden>当前筛选条件下没有高成本预警笔记。</div>
+        </div>
+      </div>
+
+      <div class="panel history-panel fixed-card">
+        <div class="panel-title">
+          <h2>预警历史趋势</h2>
+          <span>按最后投放日期归档，便于看异常集中日</span>
+        </div>
+        <div class="scroll-body">
+          <div class="history-chart" id="historyChart"></div>
+        </div>
+      </div>
+
+      <div class="panel history-panel fixed-card">
+        <div class="panel-title">
+          <h2>高频选题</h2>
+          <span>直接看选题方向 / 选题分类组合的高频次数</span>
+        </div>
+        <div class="scroll-body">
+          <div class="frequency-chart" id="historyList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DATA = {"summary":{"dateMin":"2026-01-09","dateMax":"2026-07-05","generatedAt":"2026-07-06 13:36:25","statusCounts":{"投放中":34,"疑似拉停":0,"已拉停":21},"totalSpend":83621.14},"records":[{"name":"692d651f000000001e034e48","link":"https://www.xiaohongshu.com/explore/692d651f000000001e034e48?xsec_token=WBw2AEOqmGv94EDvDEwJzLQNi04y2le-FpW-0SzTbdiN0=&xsec_source=pc_ad_export","creator":"迪丽热妈✨","category":"定制（达人）","categoryKey":"定制（达人）","direction":"攻略-信息","publishDate":"2025-12-01","firstSpendDate":"2026-01-09","lastSpendDate":"2026-03-10","deliveryDays":14,"noSpendDays":117,"deliveryStatus":"已拉停","spend":3711.48,"actionClicks":4.0,"actionCost":927.87,"categoryMedianCost":66.38683333333333,"riskReason":"行动按钮点击成本高于投放中「定制（达人）」中位数 1.5 倍"},{"name":"6a114f02000000003700db19","link":"https://www.xiaohongshu.com/explore/6a114f02000000003700db19?xsec_token=WBVXSTEy0LR_ZxLPRv9gVaLzmLyJqKzCb7C0KE_FYzjuw=&xsec_source=pc_wind_export","creator":"小舞姐姐520","category":"供应商","categoryKey":"供应商","direction":"大字报-门店","publishDate":"2026-05-24","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-05","deliveryDays":40,"noSpendDays":9999,"deliveryStatus":"投放中","spend":847.96,"actionClicks":1.0,"actionCost":847.96,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a06ca71000000003501e36c","link":"https://www.xiaohongshu.com/explore/6a06ca71000000003501e36c?xsec_token=WBgGRYOkIU6TyWywESVTSlOER2bH8HIellgth7btKkSbI=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"选车攻略类","publishDate":"2026-05-15","firstSpendDate":"2026-05-16","lastSpendDate":"2026-06-16","deliveryDays":35,"noSpendDays":19,"deliveryStatus":"已拉停","spend":7486.93,"actionClicks":9.0,"actionCost":831.8811111111112,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a0322e00000000035027cb4","link":"https://www.xiaohongshu.com/explore/6a0322e00000000035027cb4?xsec_token=WBHOVpMQEa3H6NzXzrfcJYSM7Z8Z2W3yXqHrKJXVKLepY=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"车型种草类","publishDate":"2026-05-12","firstSpendDate":"2026-05-16","lastSpendDate":"2026-07-05","deliveryDays":34,"noSpendDays":9999,"deliveryStatus":"投放中","spend":1634.81,"actionClicks":2.0,"actionCost":817.405,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a2e4b76000000002202a5ab","link":"https://www.xiaohongshu.com/explore/6a2e4b76000000002202a5ab?xsec_token=WBBt5st2ydczjVCNU82LNsAFvXsOCP6g_uPZpJWDbPJZk=&xsec_source=pc_ad_export","creator":"宗恒","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-15","firstSpendDate":"2026-06-17","lastSpendDate":"2026-07-05","deliveryDays":19,"noSpendDays":9999,"deliveryStatus":"投放中","spend":713.28,"actionClicks":1.0,"actionCost":713.28,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a21741600000000220299c1","link":"https://www.xiaohongshu.com/explore/6a21741600000000220299c1?xsec_token=WBCLB692_q_NZSV_2l-_MNFaCMLI5V0wp3w61UsczaBR8=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"官号-展期","publishDate":"2026-06-04","firstSpendDate":"2026-06-07","lastSpendDate":"2026-06-22","deliveryDays":17,"noSpendDays":13,"deliveryStatus":"已拉停","spend":1395.85,"actionClicks":2.0,"actionCost":697.925,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a0d77730000000037034755","link":"https://www.xiaohongshu.com/explore/6a0d77730000000037034755?xsec_token=WBe8UBfmz7Cwe0Idq4z3dtw_XLxLlk3FeBtyIB9XSjYxc=&xsec_source=pc_wind_export","creator":"桐桐baby","category":"供应商","categoryKey":"供应商","direction":"大字报-车型","publishDate":"2026-05-20","firstSpendDate":"2026-05-26","lastSpendDate":"2026-07-05","deliveryDays":42,"noSpendDays":9999,"deliveryStatus":"投放中","spend":585.8,"actionClicks":1.0,"actionCost":585.8,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a080c8f0000000037036c77","link":"https://www.xiaohongshu.com/explore/6a080c8f0000000037036c77?xsec_token=WBJec-FDftOlfmxV9T6AM5cWY-InJZhSEKiZw_BM7JvcE=&xsec_source=pc_wind_export","creator":"梦想家","category":"供应商","categoryKey":"供应商","direction":"大字报-车型","publishDate":"2026-05-19","firstSpendDate":"2026-05-21","lastSpendDate":"2026-07-05","deliveryDays":46,"noSpendDays":9999,"deliveryStatus":"投放中","spend":472.77,"actionClicks":1.0,"actionCost":472.77,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a166b09000000003700ce2d","link":"https://www.xiaohongshu.com/explore/6a166b09000000003700ce2d?xsec_token=WBsQrFEIKl1FYoxboHmkx6aSZAI_EjdUwXdZah9Xwsd9M=&xsec_source=pc_wind_export","creator":"图图唠车","category":"定制（达人）","categoryKey":"定制（达人）","direction":"二手车-汽车垂类","publishDate":"2026-05-27","firstSpendDate":"2026-06-03","lastSpendDate":"2026-06-22","deliveryDays":20,"noSpendDays":13,"deliveryStatus":"已拉停","spend":456.39,"actionClicks":1.0,"actionCost":456.39,"categoryMedianCost":66.38683333333333,"riskReason":"行动按钮点击成本高于投放中「定制（达人）」中位数 1.5 倍"},{"name":"6a0c0bb2000000003502fe47","link":"https://www.xiaohongshu.com/explore/6a0c0bb2000000003502fe47?xsec_token=WBjYRwkDca_OdF3l2hgyYf0JPsudaD-Zi9yzAT87Iq2p4=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"选车攻略类","publishDate":"2026-05-19","firstSpendDate":"2026-05-21","lastSpendDate":"2026-07-05","deliveryDays":37,"noSpendDays":9999,"deliveryStatus":"投放中","spend":13169.3,"actionClicks":30.0,"actionCost":438.97666666666663,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a0d72ff0000000038023bf4","link":"https://www.xiaohongshu.com/explore/6a0d72ff0000000038023bf4?xsec_token=WBe8UBfmz7Cwe0Idq4z3dtw0-vPii8qYYjSnIM1QqV3t8=&xsec_source=pc_wind_export","creator":"齐齐宝日常","category":"供应商","categoryKey":"供应商","direction":"大字报-车型","publishDate":"2026-05-21","firstSpendDate":"2026-05-26","lastSpendDate":"2026-06-23","deliveryDays":29,"noSpendDays":12,"deliveryStatus":"已拉停","spend":416.64,"actionClicks":1.0,"actionCost":416.64,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a0825e7000000003502d733","link":"https://www.xiaohongshu.com/explore/6a0825e7000000003502d733?xsec_token=WBJec-FDftOlfmxV9T6AM5cc-9j7D7WB-BK6y4EuM7EpE=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"行情价目类","publishDate":"2026-05-16","firstSpendDate":"2026-05-16","lastSpendDate":"2026-06-04","deliveryDays":21,"noSpendDays":31,"deliveryStatus":"已拉停","spend":2622.04,"actionClicks":7.0,"actionCost":374.57714285714286,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"69833a11000000002203a236","link":"https://www.xiaohongshu.com/explore/69833a11000000002203a236?xsec_token=WBDi1jjJPHKjIEBxAn1Fts_3ZIHyrDppwctgBGpX6Hhbw=&xsec_source=pc_ad_export","creator":"木子喂=","category":"定制（达人）","categoryKey":"定制（达人）","direction":"科普","publishDate":"2026-02-04","firstSpendDate":"2026-03-06","lastSpendDate":"2026-03-09","deliveryDays":4,"noSpendDays":118,"deliveryStatus":"已拉停","spend":735.79,"actionClicks":2.0,"actionCost":367.895,"categoryMedianCost":66.38683333333333,"riskReason":"行动按钮点击成本高于投放中「定制（达人）」中位数 1.5 倍"},{"name":"6a3fa698000000000f030629","link":"https://www.xiaohongshu.com/explore/6a3fa698000000000f030629?xsec_token=WBu7yuwoiCWhWEi3TvjynaCSjsnaBQ2B_2YJR-ovmDnh4=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"行情价目类","publishDate":"2026-06-27","firstSpendDate":"2026-07-01","lastSpendDate":"2026-07-05","deliveryDays":5,"noSpendDays":9999,"deliveryStatus":"投放中","spend":359.93,"actionClicks":1.0,"actionCost":359.93,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a1a8e8c000000000803c34a","link":"https://www.xiaohongshu.com/explore/6a1a8e8c000000000803c34a?xsec_token=WB1EsAK4T865VWctdWOw8kAFIqP_L0TJj4TDqwo6Drd_A=&xsec_source=pc_wind_export","creator":"小事化面包","category":"供应商","categoryKey":"供应商","direction":"大字报-门店","publishDate":"2026-05-30","firstSpendDate":"2026-06-04","lastSpendDate":"2026-06-22","deliveryDays":19,"noSpendDays":13,"deliveryStatus":"已拉停","spend":337.86,"actionClicks":1.0,"actionCost":337.86,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a13b80a00000000350326d1","link":"https://www.xiaohongshu.com/explore/6a13b80a00000000350326d1?xsec_token=WBehEY4ao4d0M-S-x6aN-i65C4Yo6hVlbVdjpoYEg-ngc=&xsec_source=pc_wind_export","creator":"沐沐饱饱","category":"供应商","categoryKey":"供应商","direction":"大字报-干货","publishDate":"2026-05-26","firstSpendDate":"2026-05-28","lastSpendDate":"2026-07-05","deliveryDays":39,"noSpendDays":9999,"deliveryStatus":"投放中","spend":330.89,"actionClicks":1.0,"actionCost":330.89,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a30b42d0000000011013d2b","link":"https://www.xiaohongshu.com/explore/6a30b42d0000000011013d2b?xsec_token=WBO1c0S_XVph_U10TjTwsj6ZDUNduZmS_Z_sxTKPkSClk=&xsec_source=pc_ad_export","creator":"半勺糖日记","category":"供应商","categoryKey":"供应商","direction":"大字报-踩坑焦虑","publishDate":"2026-06-16","firstSpendDate":"2026-06-19","lastSpendDate":"2026-07-05","deliveryDays":14,"noSpendDays":9999,"deliveryStatus":"投放中","spend":661.17,"actionClicks":2.0,"actionCost":330.585,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a0eedb8000000003502c375","link":"https://www.xiaohongshu.com/explore/6a0eedb8000000003502c375?xsec_token=WBfInUWCUWXmt3y6TlCr-ozanN2f-AlkpXmPncuyngAfg=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"选车攻略类","publishDate":"2026-05-21","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-04","deliveryDays":30,"noSpendDays":1,"deliveryStatus":"投放中","spend":575.71,"actionClicks":2.0,"actionCost":287.855,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a05b196000000003502249f","link":"https://www.xiaohongshu.com/explore/6a05b196000000003502249f?xsec_token=WBjT9HTN-QgJmDj9r_9MWRXFMmfDJZ2bUps5YpQNYYAqo=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"车型种草类","publishDate":"2026-05-14","firstSpendDate":"2026-05-16","lastSpendDate":"2026-07-05","deliveryDays":44,"noSpendDays":9999,"deliveryStatus":"投放中","spend":3105.67,"actionClicks":11.0,"actionCost":282.33363636363634,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a22be54000000003502590b","link":"https://www.xiaohongshu.com/explore/6a22be54000000003502590b?xsec_token=WBhXRpeXbggZ0CP21oDROcCC2_-VCG10pk_LeftbAyauQ=&xsec_source=pc_ad_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"官号-展期","publishDate":"2026-06-05","firstSpendDate":"2026-06-09","lastSpendDate":"2026-07-03","deliveryDays":25,"noSpendDays":2,"deliveryStatus":"投放中","spend":1089.93,"actionClicks":5.0,"actionCost":217.98600000000002,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a3275b9000000001003cd76","link":"https://www.xiaohongshu.com/explore/6a3275b9000000001003cd76?xsec_token=WBbAWdKrMv6-_-ILfvjmXDhYwjCavBXCNUoUYadbXLURo=&xsec_source=pc_ad_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"车型种草类","publishDate":"2026-06-17","firstSpendDate":"2026-06-20","lastSpendDate":"2026-07-05","deliveryDays":16,"noSpendDays":9999,"deliveryStatus":"投放中","spend":802.96,"actionClicks":4.0,"actionCost":200.74,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"69ff33050000000035029683","link":"https://www.xiaohongshu.com/explore/69ff33050000000035029683?xsec_token=WB-0D0xBOpEclK-uec_ruYruH8i0Lw2h-QyydDvtVgv1w=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"车型种草类","publishDate":"2026-05-09","firstSpendDate":"2026-05-16","lastSpendDate":"2026-07-03","deliveryDays":51,"noSpendDays":2,"deliveryStatus":"投放中","spend":383.24,"actionClicks":2.0,"actionCost":191.62,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a1008b7000000003501c7c4","link":"https://www.xiaohongshu.com/explore/6a1008b7000000003501c7c4?xsec_token=WB_IBxUzqUTQtCwWQAIoEfn5pWRuMr7Cxzp95t_QI_f28=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"选车攻略类","publishDate":"2026-05-22","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-05","deliveryDays":30,"noSpendDays":9999,"deliveryStatus":"投放中","spend":696.38,"actionClicks":4.0,"actionCost":174.095,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a114ac80000000007021c75","link":"https://www.xiaohongshu.com/explore/6a114ac80000000007021c75?xsec_token=WBVXSTEy0LR_ZxLPRv9gVaL8o401UfT7lss4hdtglnHFY=&xsec_source=pc_wind_export","creator":"果果儿","category":"供应商","categoryKey":"供应商","direction":"大字报-购后","publishDate":"2026-05-24","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-05","deliveryDays":40,"noSpendDays":9999,"deliveryStatus":"投放中","spend":852.67,"actionClicks":5.0,"actionCost":170.534,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a23e511000000002201bb9d","link":"https://www.xiaohongshu.com/explore/6a23e511000000002201bb9d?xsec_token=WBK5aPdPRT1qmvBiOmau4hze0g4-6LcQBIOy44TWLcFcM=&xsec_source=pc_ad_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"官号-展期","publishDate":"2026-06-06","firstSpendDate":"2026-06-09","lastSpendDate":"2026-06-23","deliveryDays":11,"noSpendDays":12,"deliveryStatus":"已拉停","spend":333.23,"actionClicks":2.0,"actionCost":166.615,"categoryMedianCost":104.72091666666668,"riskReason":"行动按钮点击成本高于投放中「官号」中位数 1.5 倍"},{"name":"6a13be810000000036031bfe","link":"https://www.xiaohongshu.com/explore/6a13be810000000036031bfe?xsec_token=WBehEY4ao4d0M-S-x6aN-i6_hvHoM9g0Cx8Oh38FGp7EQ=&xsec_source=pc_wind_export","creator":"猫屋敷","category":"供应商","categoryKey":"供应商","direction":"大字报-利益点","publishDate":"2026-05-26","firstSpendDate":"2026-05-29","lastSpendDate":"2026-07-05","deliveryDays":39,"noSpendDays":9999,"deliveryStatus":"投放中","spend":1779.84,"actionClicks":11.0,"actionCost":161.80363636363634,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"692eb2f3000000001d03ed20","link":"https://www.xiaohongshu.com/explore/692eb2f3000000001d03ed20?xsec_token=WByASglj6p6KXaPRwf0B1CMo43-aG3d0C1xv0qk38XyCo=&xsec_source=pc_ad_export","creator":"宁宁声声","category":"定制（达人）","categoryKey":"定制（达人）","direction":"攻略-体验","publishDate":"2025-12-02","firstSpendDate":"2026-01-09","lastSpendDate":"2026-03-06","deliveryDays":18,"noSpendDays":121,"deliveryStatus":"已拉停","spend":793.27,"actionClicks":5.0,"actionCost":158.654,"categoryMedianCost":66.38683333333333,"riskReason":"行动按钮点击成本高于投放中「定制（达人）」中位数 1.5 倍"},{"name":"6a114f250000000037036091","link":"https://www.xiaohongshu.com/explore/6a114f250000000037036091?xsec_token=WBVXSTEy0LR_ZxLPRv9gVaL9ebq21ww0cA5nfIXBngCHw=&xsec_source=pc_wind_export","creator":"快乐小星","category":"供应商","categoryKey":"供应商","direction":"大字报-利益点","publishDate":"2026-05-23","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-05","deliveryDays":40,"noSpendDays":9999,"deliveryStatus":"投放中","spend":688.27,"actionClicks":5.0,"actionCost":137.654,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a114eb1000000003501e0bf","link":"https://www.xiaohongshu.com/explore/6a114eb1000000003501e0bf?xsec_token=WBVXSTEy0LR_ZxLPRv9gVaL__x-V7jfDzS5flEwimRLZo=&xsec_source=pc_wind_export","creator":"嘤嘤洛","category":"供应商","categoryKey":"供应商","direction":"大字报-购后","publishDate":"2026-05-23","firstSpendDate":"2026-05-27","lastSpendDate":"2026-07-05","deliveryDays":40,"noSpendDays":9999,"deliveryStatus":"投放中","spend":1088.31,"actionClicks":8.0,"actionCost":136.03875,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a27cfd6000000001c0252d8","link":"https://www.xiaohongshu.com/explore/6a27cfd6000000001c0252d8?xsec_token=WBXVwaKEJJ2tFvCimk7w6ZvtqcfTvi3jlxEM312yB2mZI=&xsec_source=pc_ad_export","creator":"例外","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-09","firstSpendDate":"2026-06-12","lastSpendDate":"2026-07-05","deliveryDays":19,"noSpendDays":9999,"deliveryStatus":"投放中","spend":976.75,"actionClicks":8.0,"actionCost":122.09375,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a165aca0000000035039af5","link":"https://www.xiaohongshu.com/explore/6a165aca0000000035039af5?xsec_token=WBsQrFEIKl1FYoxboHmkx6aTlhjUcltddbt35F-DdcM5c=&xsec_source=pc_wind_export","creator":"雯姿","category":"供应商","categoryKey":"供应商","direction":"大字报-车展（预热）","publishDate":"2026-05-27","firstSpendDate":"2026-05-28","lastSpendDate":"2026-06-25","deliveryDays":31,"noSpendDays":10,"deliveryStatus":"已拉停","spend":8125.47,"actionClicks":67.0,"actionCost":121.27567164179105,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a165a6a0000000036001e93","link":"https://www.xiaohongshu.com/explore/6a165a6a0000000036001e93?xsec_token=WBsQrFEIKl1FYoxboHmkx6aRXR3YtXpNrrZ5mJ0iLDnzY=&xsec_source=pc_wind_export","creator":"姜姜pat","category":"供应商","categoryKey":"供应商","direction":"大字报-车展（预热）","publishDate":"2026-05-27","firstSpendDate":"2026-05-28","lastSpendDate":"2026-06-25","deliveryDays":29,"noSpendDays":10,"deliveryStatus":"已拉停","spend":460.52,"actionClicks":4.0,"actionCost":115.13,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a2a60a5000000002201a317","link":"https://www.xiaohongshu.com/explore/6a2a60a5000000002201a317?xsec_token=WBGXupIrVHoUH-OH02_hWjnIXgjHa_d1XcuUiKCdAY3Q0=&xsec_source=pc_ad_export","creator":"秋雨兮","category":"供应商","categoryKey":"供应商","direction":"大字报-决策纠结","publishDate":"2026-06-11","firstSpendDate":"2026-06-12","lastSpendDate":"2026-07-05","deliveryDays":17,"noSpendDays":9999,"deliveryStatus":"投放中","spend":1035.6,"actionClicks":9.0,"actionCost":115.06666666666666,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a33ceda0000000006032017","link":"https://www.xiaohongshu.com/explore/6a33ceda0000000006032017?xsec_token=WBvNKdemEOvEOJepgos_ouETUWxy8NEOTJ5wh_ALKdqkY=&xsec_source=pc_ad_export","creator":"烈夏一一","category":"供应商","categoryKey":"供应商","direction":"大字报-决策纠结","publishDate":"2026-06-20","firstSpendDate":"2026-06-23","lastSpendDate":"2026-07-03","deliveryDays":13,"noSpendDays":2,"deliveryStatus":"投放中","spend":457.18,"actionClicks":4.0,"actionCost":114.295,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"69311f3b000000001e036f20","link":"https://www.xiaohongshu.com/explore/69311f3b000000001e036f20?xsec_token=WBEdHEN4PXw-rzGyZzWfg6G91qKOWLtCTNPq2lCDHcEnA=&xsec_source=pc_ad_export","creator":"一只奶酪棒","category":"定制（达人）","categoryKey":"定制（达人）","direction":"攻略-体验","publishDate":"2025-12-04","firstSpendDate":"2026-01-09","lastSpendDate":"2026-03-09","deliveryDays":18,"noSpendDays":118,"deliveryStatus":"已拉停","spend":538.31,"actionClicks":5.0,"actionCost":107.66199999999999,"categoryMedianCost":66.38683333333333,"riskReason":"行动按钮点击成本高于投放中「定制（达人）」中位数 1.5 倍"},{"name":"6a1559d7000000003601baf6","link":"https://www.xiaohongshu.com/explore/6a1559d7000000003601baf6?xsec_token=WB_bn7hJRLES0RxZdzuqaHgfDbYdf2wvyBrSLe6YpzSR4=&xsec_source=pc_wind_export","creator":"绵绵冰小羊","category":"供应商","categoryKey":"供应商","direction":"大字报-车展（预热）","publishDate":"2026-05-26","firstSpendDate":"2026-05-28","lastSpendDate":"2026-06-23","deliveryDays":27,"noSpendDays":12,"deliveryStatus":"已拉停","spend":789.5699999999999,"actionClicks":8.0,"actionCost":98.69624999999999,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a0d739e00000000350301c9","link":"https://www.xiaohongshu.com/explore/6a0d739e00000000350301c9?xsec_token=WBe8UBfmz7Cwe0Idq4z3dtw4VcrJvH-gnHrPqns-1FYLE=&xsec_source=pc_wind_export","creator":"可爱多米多","category":"供应商","categoryKey":"供应商","direction":"大字报-车型","publishDate":"2026-05-21","firstSpendDate":"2026-05-26","lastSpendDate":"2026-07-05","deliveryDays":41,"noSpendDays":9999,"deliveryStatus":"投放中","spend":351.8,"actionClicks":4.0,"actionCost":87.95,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a06fcb100000000380345a5","link":"https://www.xiaohongshu.com/explore/6a06fcb100000000380345a5?xsec_token=WBgGRYOkIU6TyWywESVTSlONUOLFjnhGnZdB6g3nuOMX0=&xsec_source=pc_wind_export","creator":"爱笑的菇凉","category":"供应商","categoryKey":"供应商","direction":"大字报-利益点","publishDate":"2026-05-15","firstSpendDate":"2026-05-16","lastSpendDate":"2026-07-05","deliveryDays":51,"noSpendDays":9999,"deliveryStatus":"投放中","spend":8112.25,"actionClicks":96.0,"actionCost":84.50260416666667,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a2a5779000000001c024349","link":"https://www.xiaohongshu.com/explore/6a2a5779000000001c024349?xsec_token=WBGXupIrVHoUH-OH02_hWjnM5yOROPpD55iCPJlZWDe2Q=&xsec_source=pc_ad_export","creator":"桃桃气泡水","category":"供应商","categoryKey":"供应商","direction":"大字报-踩坑焦虑","publishDate":"2026-06-11","firstSpendDate":"2026-06-12","lastSpendDate":"2026-07-05","deliveryDays":24,"noSpendDays":9999,"deliveryStatus":"投放中","spend":1898.5,"actionClicks":23.0,"actionCost":82.54347826086956,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a27e48200000000150269fd","link":"https://www.xiaohongshu.com/explore/6a27e48200000000150269fd?xsec_token=WBXVwaKEJJ2tFvCimk7w6ZvqNDnEXMiG88rMvy0QBlrCE=&xsec_source=pc_ad_export","creator":"夏日狂想曲","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-09","firstSpendDate":"2026-06-12","lastSpendDate":"2026-07-03","deliveryDays":22,"noSpendDays":2,"deliveryStatus":"投放中","spend":1129.21,"actionClicks":14.0,"actionCost":80.65785714285714,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a2a6231000000002202605d","link":"https://www.xiaohongshu.com/explore/6a2a6231000000002202605d?xsec_token=WBGXupIrVHoUH-OH02_hWjnClttYgx9pffOPVcxPKy2Ns=&xsec_source=pc_ad_export","creator":"奶油小方","category":"供应商","categoryKey":"供应商","direction":"大字报-决策纠结","publishDate":"2026-06-11","firstSpendDate":"2026-06-12","lastSpendDate":"2026-06-23","deliveryDays":12,"noSpendDays":12,"deliveryStatus":"已拉停","spend":317.68,"actionClicks":4.0,"actionCost":79.42,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a3259170000000017028c2f","link":"https://www.xiaohongshu.com/explore/6a3259170000000017028c2f?xsec_token=WBbAWdKrMv6-_-ILfvjmXDhTQKk_dUKoMrzeP6eU32oBc=&xsec_source=pc_ad_export","creator":"暗号跑","category":"供应商","categoryKey":"供应商","direction":"大字报-决策纠结","publishDate":"2026-06-17","firstSpendDate":"2026-06-19","lastSpendDate":"2026-07-03","deliveryDays":17,"noSpendDays":2,"deliveryStatus":"投放中","spend":1405.45,"actionClicks":19.0,"actionCost":73.97105263157896,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a06f0b7000000003503319f","link":"https://www.xiaohongshu.com/explore/6a06f0b7000000003503319f?xsec_token=WBgGRYOkIU6TyWywESVTSlOBSEyNpjRywllFknflXPSRo=&xsec_source=pc_wind_export","creator":"枝与蔓","category":"供应商","categoryKey":"供应商","direction":"大字报-车型","publishDate":"2026-05-15","firstSpendDate":"2026-05-16","lastSpendDate":"2026-07-05","deliveryDays":51,"noSpendDays":9999,"deliveryStatus":"投放中","spend":613.74,"actionClicks":9.0,"actionCost":68.19333333333333,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a30b46400000000060316c1","link":"https://www.xiaohongshu.com/explore/6a30b46400000000060316c1?xsec_token=WBO1c0S_XVph_U10TjTwsj6UVmx8MW6TtfmY2hJSFLMtY=&xsec_source=pc_ad_export","creator":"黛黛丫","category":"供应商","categoryKey":"供应商","direction":"大字报-踩坑焦虑","publishDate":"2026-06-16","firstSpendDate":"2026-06-19","lastSpendDate":"2026-07-03","deliveryDays":16,"noSpendDays":2,"deliveryStatus":"投放中","spend":779.92,"actionClicks":12.0,"actionCost":64.99333333333333,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a27e4660000000022027b8b","link":"https://www.xiaohongshu.com/explore/6a27e4660000000022027b8b?xsec_token=WBXVwaKEJJ2tFvCimk7w6ZvnlyZYqL1qnJcjRghVNUGGY=&xsec_source=pc_ad_export","creator":"仙女味慕斯","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-10","firstSpendDate":"2026-06-12","lastSpendDate":"2026-07-03","deliveryDays":22,"noSpendDays":2,"deliveryStatus":"投放中","spend":2020.36,"actionClicks":33.0,"actionCost":61.2230303030303,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a33c5230000000015027bbb","link":"https://www.xiaohongshu.com/explore/6a33c5230000000015027bbb?xsec_token=WBvNKdemEOvEOJepgos_ouEUq58kvE-oHbedC5osPwpfo=&xsec_source=pc_ad_export","creator":"张梓琳","category":"供应商","categoryKey":"供应商","direction":"大字报-决策纠结","publishDate":"2026-06-21","firstSpendDate":"2026-06-23","lastSpendDate":"2026-07-05","deliveryDays":13,"noSpendDays":9999,"deliveryStatus":"投放中","spend":663.91,"actionClicks":11.0,"actionCost":60.35545454545454,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"6a3cfb16000000001702c508","link":"https://www.xiaohongshu.com/explore/6a3cfb16000000001702c508?xsec_token=WBfpammpTj61WjLrmPS_DABFfqhelYofKAjzovvKoRZKE=&xsec_source=pc_wind_export","creator":"贝塔","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-25","firstSpendDate":"2026-06-27","lastSpendDate":"2026-07-05","deliveryDays":9,"noSpendDays":9999,"deliveryStatus":"投放中","spend":929.41,"actionClicks":17.0,"actionCost":54.671176470588236,"categoryMedianCost":35.18939393939394,"riskReason":"行动按钮点击成本高于投放中「供应商」中位数 1.5 倍"},{"name":"69c378ea00000000230258db","link":"https://www.xiaohongshu.com/explore/69c378ea00000000230258db?xsec_token=WBKybypOddXVNrl73p3NcjFey1EIkcYW_1SAISLNZaWnk=&xsec_source=pc_ad_export","creator":"多练五分钟","category":"自然流","categoryKey":"自然流","direction":"提车","publishDate":"2026-03-25","firstSpendDate":"2026-04-03","lastSpendDate":"2026-05-10","deliveryDays":39,"noSpendDays":56,"deliveryStatus":"已拉停","spend":1554.68,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":0.0,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"69c3db73000000001e00d3c8","link":"https://www.xiaohongshu.com/explore/69c3db73000000001e00d3c8?xsec_token=WBKybypOddXVNrl73p3NcjFWJR3ut-rW0rXmd_ONtvZuU=&xsec_source=pc_ad_export","creator":"豚豚章","category":"自然流","categoryKey":"自然流","direction":"提车","publishDate":"2026-03-25","firstSpendDate":"2026-04-03","lastSpendDate":"2026-05-10","deliveryDays":38,"noSpendDays":56,"deliveryStatus":"已拉停","spend":776.5699999999999,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":0.0,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"69c92212000000002200ff46","link":"https://www.xiaohongshu.com/explore/69c92212000000002200ff46?xsec_token=WB8VzTBXgAB5vXfwOuP632UFZQlrPmEE2WJeGeG_0dsiE=&xsec_source=pc_ad_export","creator":"阿bo与阿仔","category":"自然流","categoryKey":"自然流","direction":"提车","publishDate":"2026-03-29","firstSpendDate":"2026-04-04","lastSpendDate":"2026-05-10","deliveryDays":38,"noSpendDays":56,"deliveryStatus":"已拉停","spend":531.58,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":0.0,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"6a325973000000000702cf6f","link":"https://www.xiaohongshu.com/explore/6a325973000000000702cf6f?xsec_token=WBbAWdKrMv6-_-ILfvjmXDhS7lbAH3Tvmt1jOUgqZicoY=&xsec_source=pc_ad_export","creator":"月西沉","category":"供应商","categoryKey":"供应商","direction":"大字报-真实经历","publishDate":"2026-06-17","firstSpendDate":"2026-06-19","lastSpendDate":"2026-07-05","deliveryDays":12,"noSpendDays":9999,"deliveryStatus":"投放中","spend":523.79,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":35.18939393939394,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"69c27086000000001d01a30a","link":"https://www.xiaohongshu.com/explore/69c27086000000001d01a30a?xsec_token=WB14M44tF2O4NtrDjCzPGDDRt0qJpX-DALNupUd14iHVE=&xsec_source=pc_ad_export","creator":"Rollyn","category":"自然流","categoryKey":"自然流","direction":"购后分享","publishDate":"2026-03-24","firstSpendDate":"2026-04-03","lastSpendDate":"2026-05-10","deliveryDays":38,"noSpendDays":56,"deliveryStatus":"已拉停","spend":471.37,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":0.0,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"6a1803880000000035038448","link":"https://www.xiaohongshu.com/explore/6a1803880000000035038448?xsec_token=WBdX7XJ1xCYbdeToCT7JUTILXtgmk7oAppbAbHtisuJVg=&xsec_source=pc_ad_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"选车攻略类","publishDate":"2026-05-28","firstSpendDate":"2026-05-29","lastSpendDate":"2026-06-04","deliveryDays":7,"noSpendDays":31,"deliveryStatus":"已拉停","spend":396.21999999999997,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":104.72091666666668,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"69c789c3000000001a0274c6","link":"https://www.xiaohongshu.com/explore/69c789c3000000001a0274c6?xsec_token=WBXQRE0ALXyTim5p19eQAn59lu0MAkHfSGvvaijMb4OcE=&xsec_source=pc_ad_export","creator":"Jayleen","category":"定制（达人）","categoryKey":"定制（达人）","direction":"购车经验","publishDate":"2026-03-28","firstSpendDate":"2026-04-09","lastSpendDate":"2026-05-10","deliveryDays":32,"noSpendDays":56,"deliveryStatus":"已拉停","spend":320.04,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":66.38683333333333,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"},{"name":"6a3d0675000000001003caab","link":"https://www.xiaohongshu.com/explore/6a3d0675000000001003caab?xsec_token=WB9FignDn3CT3fRQa8QmyIFMPS1GDGvSRSUDM5U7uu7VU=&xsec_source=pc_wind_export","creator":"转转新能源二手车","category":"官号","categoryKey":"官号","direction":"行情价目类","publishDate":"2026-06-25","firstSpendDate":"2026-06-28","lastSpendDate":"2026-07-05","deliveryDays":9,"noSpendDays":9999,"deliveryStatus":"投放中","spend":312.89,"actionClicks":0.0,"actionCost":null,"categoryMedianCost":104.72091666666668,"riskReason":"累计消耗 ≥ 300，且行动按钮点击量 = 0"}],"history":[{"date":"2026-07-05","count":26,"spend":43208.65,"activeCount":26,"suspectCount":0,"topCategories":[{"name":"供应商","count":19},{"name":"官号","count":7}]},{"date":"2026-07-04","count":1,"spend":575.71,"activeCount":1,"suspectCount":0,"topCategories":[{"name":"官号","count":1}]},{"date":"2026-07-03","count":7,"spend":7265.29,"activeCount":7,"suspectCount":0,"topCategories":[{"name":"供应商","count":5},{"name":"官号","count":2}]},{"date":"2026-06-25","count":2,"spend":8585.99,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"供应商","count":2}]},{"date":"2026-06-23","count":4,"spend":1857.1200000000001,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"供应商","count":3},{"name":"官号","count":1}]},{"date":"2026-06-22","count":3,"spend":2190.1,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"官号","count":1},{"name":"定制（达人）","count":1},{"name":"供应商","count":1}]},{"date":"2026-06-16","count":1,"spend":7486.93,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"官号","count":1}]},{"date":"2026-06-04","count":2,"spend":3018.2599999999998,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"官号","count":2}]},{"date":"2026-05-10","count":5,"spend":3654.24,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"自然流","count":4},{"name":"定制（达人）","count":1}]},{"date":"2026-03-10","count":1,"spend":3711.48,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"定制（达人）","count":1}]},{"date":"2026-03-09","count":2,"spend":1274.1,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"定制（达人）","count":2}]},{"date":"2026-03-06","count":1,"spend":793.27,"activeCount":0,"suspectCount":0,"topCategories":[{"name":"定制（达人）","count":1}]}],"frequency":[{"direction":"大字报-真实经历","category":"供应商","combo":"大字报-真实经历 / 供应商","count":6,"spend":6292.8,"activeCount":6,"suspectCount":0},{"direction":"选车攻略类","category":"官号","combo":"选车攻略类 / 官号","count":5,"spend":22324.54,"activeCount":3,"suspectCount":0},{"direction":"大字报-决策纠结","category":"供应商","combo":"大字报-决策纠结 / 供应商","count":5,"spend":3879.8199999999997,"activeCount":4,"suspectCount":0},{"direction":"大字报-车型","category":"供应商","combo":"大字报-车型 / 供应商","count":5,"spend":2440.75,"activeCount":4,"suspectCount":0},{"direction":"车型种草类","category":"官号","combo":"车型种草类 / 官号","count":4,"spend":5926.68,"activeCount":4,"suspectCount":0},{"direction":"大字报-利益点","category":"供应商","combo":"大字报-利益点 / 供应商","count":3,"spend":10580.36,"activeCount":3,"suspectCount":0},{"direction":"大字报-车展（预热）","category":"供应商","combo":"大字报-车展（预热） / 供应商","count":3,"spend":9375.56,"activeCount":0,"suspectCount":0},{"direction":"大字报-踩坑焦虑","category":"供应商","combo":"大字报-踩坑焦虑 / 供应商","count":3,"spend":3339.59,"activeCount":3,"suspectCount":0},{"direction":"行情价目类","category":"官号","combo":"行情价目类 / 官号","count":3,"spend":3294.86,"activeCount":2,"suspectCount":0},{"direction":"提车","category":"自然流","combo":"提车 / 自然流","count":3,"spend":2862.83,"activeCount":0,"suspectCount":0},{"direction":"官号-展期","category":"官号","combo":"官号-展期 / 官号","count":3,"spend":2819.01,"activeCount":1,"suspectCount":0},{"direction":"大字报-购后","category":"供应商","combo":"大字报-购后 / 供应商","count":2,"spend":1940.98,"activeCount":2,"suspectCount":0}]};
+    const DEFAULT_COLUMNS = [
+      { key: 'deliveryStatus', label: '状态', sortValue: r => r.deliveryStatus || '', exportValue: r => r.deliveryStatus || '' },
+      { key: 'name', label: '笔记名称', hint: '单击复制链接 / 双击打开', sortValue: r => r.name || '', exportValue: r => r.name || '', render: r => clickableTitle(r.name || '-', r.link || '', r.link || r.name || '') },
+      { key: 'linkAction', label: '链接操作', hint: '收窄显示', sortValue: r => r.link || '', exportValue: r => r.link || '', render: r => renderLinkActions(r.link || '') },
+      { key: 'creator', label: '达人', sortValue: r => r.creator || '', exportValue: r => r.creator || '' },
+      { key: 'categoryKey', label: '选题分类', sortValue: r => r.categoryKey || '', exportValue: r => r.categoryKey || '' },
+      { key: 'firstSpendDate', label: '首投日期', sortValue: r => r.firstSpendDate || '', exportValue: r => r.firstSpendDate || '' },
+      { key: 'deliveryDays', label: '投放天数', sortValue: r => Number(r.deliveryDays || 0), exportValue: r => Number(r.deliveryDays || 0), render: r => fmtInt(r.deliveryDays) },
+      { key: 'spend', label: '消耗', sortValue: r => Number(r.spend || 0), exportValue: r => Number(r.spend || 0), render: r => fmtMoney(r.spend) },
+      { key: 'actionClicks', label: '行动按钮点击量', sortValue: r => Number(r.actionClicks || 0), exportValue: r => Number(r.actionClicks || 0), render: r => fmtInt(r.actionClicks) },
+      { key: 'actionCost', label: '行动按钮点击成本', sortValue: r => Number.isFinite(Number(r.actionCost)) ? Number(r.actionCost) : -1, exportValue: r => Number.isFinite(Number(r.actionCost)) ? Number(r.actionCost) : '', render: r => r.actionCost == null ? '-' : fmtMoney(r.actionCost) },
+      { key: 'categoryMedianCost', label: '同选题分类投放中中位成本', sortValue: r => Number(r.categoryMedianCost || 0), exportValue: r => Number(r.categoryMedianCost || 0), render: r => r.categoryMedianCost ? fmtMoney(r.categoryMedianCost) : '-' },
+      { key: 'riskReason', label: '触发原因', sortValue: r => r.riskReason || '', exportValue: r => r.riskReason || '', render: r => renderReason(r.riskReason || '') },
+      { key: 'lastSpendDate', label: '最后投放日期', sortValue: r => r.lastSpendDate || '', exportValue: r => r.lastSpendDate || '' }
+    ];
+
+    const state = {
+      filter: 'all',
+      sortKey: 'actionCost',
+      sortDir: 'desc',
+      columnOrder: DEFAULT_COLUMNS.map(col => col.key),
+      clickTimer: null
+    };
+
+    const columnMap = new Map(DEFAULT_COLUMNS.map(col => [col.key, col]));
+
+    function fmtMoney(value) {
+      const number = Number(value || 0);
+      return `¥${number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function fmtInt(value) {
+      return Number(value || 0).toLocaleString('zh-CN');
+    }
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"]/g, s => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[s]);
+    }
+
+    function clickableTitle(label, href, copyValue) {
+      const safeLabel = esc(label || '-');
+      const safeHref = esc(href || '');
+      const safeCopy = esc(copyValue || '');
+      return `<span class="copyable" data-copy="${safeCopy}" data-href="${safeHref}">${safeLabel}</span>`;
+    }
+
+    function renderLinkActions(href) {
+      if (!href) return '<span class="muted">-</span>';
+      const safeHref = esc(href);
+      return `
+        <div class="link-actions">
+          <button class="mini-btn" data-copy="${safeHref}">复制</button>
+          <button class="mini-btn" data-open="${safeHref}">打开</button>
+        </div>
+      `;
+    }
+
+    function renderReason(reason) {
+      if (!reason) return '<span class="muted">-</span>';
+      return `
+        <details class="reason">
+          <summary>查看详情</summary>
+          <div class="reason-body">${esc(reason)}</div>
+        </details>
+      `;
+    }
+
+    function getColumns() {
+      return state.columnOrder.map(key => columnMap.get(key)).filter(Boolean);
+    }
+
+    function getFilteredRecords() {
+      const records = Array.isArray(DATA.records) ? DATA.records.slice() : [];
+      const filtered = state.filter === 'all'
+        ? records
+        : records.filter(item => item.deliveryStatus === state.filter);
+      filtered.sort((a, b) => {
+        const column = columnMap.get(state.sortKey) || DEFAULT_COLUMNS[0];
+        const left = column.sortValue ? column.sortValue(a) : a[state.sortKey];
+        const right = column.sortValue ? column.sortValue(b) : b[state.sortKey];
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        if (left == null && right == null) return 0;
+        if (left == null) return 1;
+        if (right == null) return -1;
+        if (typeof left === 'number' && typeof right === 'number') return (left - right) * dir;
+        return String(left).localeCompare(String(right), 'zh-CN') * dir;
+      });
+      return filtered;
+    }
+
+    function renderSummary() {
+      const records = Array.isArray(DATA.records) ? DATA.records : [];
+      const statusCounts = {
+        active: records.filter(item => item.deliveryStatus === '投放中').length,
+        suspect: records.filter(item => item.deliveryStatus === '疑似拉停').length
+      };
+      const spend = records.reduce((sum, item) => sum + Number(item.spend || 0), 0);
+      document.getElementById('generatedAt').textContent = `生成时间：${DATA.summary.generatedAt || '-'}`;
+      document.getElementById('metricCount').textContent = fmtInt(records.length);
+      document.getElementById('metricStatus').textContent = `${fmtInt(statusCounts.active)} / ${fmtInt(statusCounts.suspect)}`;
+      document.getElementById('metricSpend').textContent = fmtMoney(spend);
+      document.getElementById('metricDate').textContent = `${DATA.summary.dateMin || '-'} 至 ${DATA.summary.dateMax || '-'}`;
+    }
+
+    function renderHistory() {
+      const history = Array.isArray(DATA.history) ? DATA.history.slice(0, 8) : [];
+      const frequency = Array.isArray(DATA.frequency) ? DATA.frequency.slice(0, 12) : [];
+      const chart = document.getElementById('historyChart');
+      const list = document.getElementById('historyList');
+      if (!history.length) {
+        chart.innerHTML = '<div class="muted">暂无历史预警数据。</div>';
+      } else {
+        const maxCount = Math.max(...history.map(item => Number(item.count || 0)), 1);
+        chart.innerHTML = history.map(item => {
+          const width = Math.max(10, Math.round((Number(item.count || 0) / maxCount) * 100));
+          return `
+            <div class="history-row">
+              <div class="history-date">${esc(item.date || '-')}</div>
+              <div class="history-bar-track"><div class="history-bar" style="width:${width}%"></div></div>
+              <div class="history-meta">${fmtInt(item.count)} 条 / ${fmtMoney(item.spend)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      if (!frequency.length) {
+        list.innerHTML = '<div class="muted">暂无高频选题数据。</div>';
+        return;
+      }
+      const maxFrequency = Math.max(...frequency.map(item => Number(item.count || 0)), 1);
+      list.innerHTML = frequency.map(item => {
+        const width = Math.max(10, Math.round((Number(item.count || 0) / maxFrequency) * 100));
+        return `
+          <div class="frequency-item">
+            <div class="frequency-head">
+              <div class="frequency-name">${esc(item.combo || '-')}</div>
+              <div class="frequency-count">${fmtInt(item.count)} 次</div>
+            </div>
+            <div class="frequency-track"><div class="frequency-bar" style="width:${width}%"></div></div>
+            <div class="frequency-meta">投放中 ${fmtInt(item.activeCount)} / 疑似拉停 ${fmtInt(item.suspectCount)} / 消耗 ${fmtMoney(item.spend)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTable() {
+      const records = getFilteredRecords();
+      document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === state.filter);
+      });
+      document.getElementById('tableMeta').textContent = `当前展示 ${records.length} 条；表头支持点击排序、拖动换位；链接列已收窄为轻量操作按钮；触发原因轻触展开。`;
+
+      const table = document.getElementById('riskTable');
+      const empty = document.getElementById('emptyState');
+      if (!records.length) {
+        table.innerHTML = '';
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+
+      const columns = getColumns();
+      const head = `<thead><tr>${columns.map(col => {
+        const arrow = state.sortKey === col.key ? (state.sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+        const hint = col.hint ? `<span class="hint">${esc(col.hint)}</span>` : '';
+        return `<th draggable="true" data-key="${col.key}">${esc(col.label)}${arrow}${hint}</th>`;
+      }).join('')}</tr></thead>`;
+
+      const body = `<tbody>${records.map(row => `<tr>${columns.map(col => {
+        let html = '';
+        if (col.key === 'deliveryStatus') {
+          html = `<span class="status-pill status-${esc(row.deliveryStatus || '')}">${esc(row.deliveryStatus || '-')}</span>`;
+        } else if (typeof col.render === 'function') {
+          html = col.render(row);
+        } else {
+          html = esc(row[col.key] ?? '-');
+        }
+        return `<td>${html}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>`;
+
+      table.innerHTML = head + body;
+      bindHeaderEvents();
+      bindActionEvents();
+    }
+
+    function bindHeaderEvents() {
+      const headers = Array.from(document.querySelectorAll('#riskTable th'));
+      headers.forEach(th => {
+        th.addEventListener('click', event => {
+          if (event.target !== th && event.target.closest('.hint')) return;
+          const key = th.dataset.key;
+          if (state.sortKey === key) {
+            state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            state.sortKey = key;
+            state.sortDir = key === 'name' ? 'asc' : 'desc';
+          }
+          renderTable();
+        });
+        th.addEventListener('dragstart', () => {
+          th.classList.add('dragging');
+          th.dataset.dragging = '1';
+        });
+        th.addEventListener('dragend', () => {
+          th.classList.remove('dragging');
+          delete th.dataset.dragging;
+        });
+        th.addEventListener('dragover', event => event.preventDefault());
+        th.addEventListener('drop', event => {
+          event.preventDefault();
+          const source = document.querySelector('#riskTable th[data-dragging="1"]');
+          if (!source || source === th) return;
+          const fromKey = source.dataset.key;
+          const toKey = th.dataset.key;
+          const next = state.columnOrder.slice();
+          const fromIndex = next.indexOf(fromKey);
+          const toIndex = next.indexOf(toKey);
+          if (fromIndex < 0 || toIndex < 0) return;
+          next.splice(fromIndex, 1);
+          next.splice(toIndex, 0, fromKey);
+          state.columnOrder = next;
+          renderTable();
+        });
+      });
+    }
+
+    function bindActionEvents() {
+      document.querySelectorAll('.copyable').forEach(node => {
+        node.addEventListener('click', () => {
+          const value = node.dataset.copy || '';
+          clearTimeout(state.clickTimer);
+          state.clickTimer = setTimeout(() => {
+            if (value) navigator.clipboard.writeText(value).catch(() => undefined);
+          }, 220);
+        });
+        node.addEventListener('dblclick', () => {
+          clearTimeout(state.clickTimer);
+          const href = node.dataset.href || '';
+          if (href) window.open(href, '_blank', 'noopener');
+        });
+      });
+
+      document.querySelectorAll('[data-copy]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const value = btn.dataset.copy || '';
+          if (value) navigator.clipboard.writeText(value).catch(() => undefined);
+        });
+      });
+      document.querySelectorAll('[data-open]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const href = btn.dataset.open || '';
+          if (href) window.open(href, '_blank', 'noopener');
+        });
+      });
+    }
+
+    function exportExcel() {
+      if (typeof XLSX === 'undefined') {
+        alert('缺少导出组件 xlsx.full.min.js');
+        return;
+      }
+      const columns = getColumns().filter(col => col.key !== 'linkAction');
+      const rows = getFilteredRecords().map(row => {
+        const out = {};
+        columns.forEach(col => {
+          out[col.label] = typeof col.exportValue === 'function'
+            ? col.exportValue(row)
+            : (row[col.key] ?? '');
+        });
+        out['笔记链接'] = row.link || '';
+        return out;
+      });
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, '高成本预警');
+      XLSX.writeFile(book, `高成本预警-${DATA.summary.dateMax || 'preview'}.xlsx`);
+    }
+
+    function bindControls() {
+      document.getElementById('filters').addEventListener('click', event => {
+        const btn = event.target.closest('[data-filter]');
+        if (!btn) return;
+        state.filter = btn.dataset.filter;
+        renderTable();
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', () => {
+        exportExcel();
+      });
+      document.getElementById('resetColumnsBtn').addEventListener('click', () => {
+        state.columnOrder = DEFAULT_COLUMNS.map(col => col.key);
+        renderTable();
+      });
+    }
+
+    renderSummary();
+    renderHistory();
+    bindControls();
+    renderTable();
+  </script>
+</body>
+</html>
