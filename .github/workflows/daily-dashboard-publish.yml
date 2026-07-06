@@ -24,7 +24,7 @@ jobs:
           mkdir -p github-pages-site
           cp "高成本预警看板.html" github-pages-site/risk-alert.html
           cp "高成本预警看板.html" github-pages-site/index.html
-          cp "xlsx.full.min.js" github-pages-site/xlsx.full.min.js
+          curl -L "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" -o github-pages-site/xlsx.full.min.js
           touch github-pages-site/.nojekyll
 
       - name: Setup Pages
