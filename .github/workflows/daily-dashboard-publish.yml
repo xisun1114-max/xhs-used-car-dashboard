@@ -52,3 +52,52 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run governed dashboard publish
+        run: python dashboard_auto_publish.py
+
+      - name: Build GitHub Pages site
+        if: success()
+        run: python build_github_pages_site.py
+
+      - name: Upload GitHub Pages artifact
+        if: success()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: github-pages-site
+
+      - name: Upload run logs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-publish-${{ github.run_id }}
+          path: |
+            publish_reports/
+            publish_run_logs/
+            cloudflare-pages-upload/XHS.html
+            cloudflare-pages-upload/index.html
+            github-pages-site/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Deploy to GitHub Pages
+        if: success()
+        id: deploy-pages
+        uses: actions/deploy-pages@v4
+
+      - name: Send risk alert with GitHub Pages link
+        if: success()
+        env:
+          GITHUB_PAGES_RISK_ALERT_URL: ${{ steps.deploy-pages.outputs.page_url }}/risk-alert.html
+        run: python feishu_risk_alert.py
+
+      - name: Persist success baseline
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard_publish_state/zhuanzhuan_xhs_ads_last_success.json
+          if git diff --cached --quiet; then
+            echo "No baseline change to commit."
+          else
+            git commit -m "chore: update dashboard publish baseline [skip ci]"
+            git push
+          fi
