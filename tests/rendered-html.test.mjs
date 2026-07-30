@@ -23,6 +23,8 @@ test("ships the supplier comment maintenance workspace and real task payload", a
   assert.match(client, /官号回复/);
   assert.match(client, /插入图片/);
   assert.match(client, /双击文字进入编辑/);
+  assert.match(client, /双击撤回/);
+  assert.match(client, /每轮限一次/);
   assert.match(client, /下载当前清单/);
   assert.equal(payload.summary.total, 39);
   assert.equal(payload.summary.p0, 14);

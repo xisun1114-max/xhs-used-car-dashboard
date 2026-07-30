@@ -194,15 +194,33 @@ export function DashboardClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ actor, operation_type: operationType, detail }),
       });
-      const payload = await response.json() as { event?: OperationEvent; error?: string };
+      const payload = await response.json() as { event?: OperationEvent; already_recorded?: boolean; error?: string };
       if (!response.ok || !payload.event) throw new Error(payload.error || "操作记录保存失败");
-      setData((current) => ({ ...current, operations: [payload.event!, ...(current.operations || [])] }));
-      setMessage(`已记录一次${operationLabels[operationType]} · ${actor}`);
+      setData((current) => ({ ...current, operations: (current.operations || []).some((event) => event.id === payload.event!.id) ? current.operations : [payload.event!, ...(current.operations || [])] }));
+      setMessage(payload.already_recorded ? `本轮${operationLabels[operationType]}已记录，不能重复添加` : `已记录本轮${operationLabels[operationType]} · ${actor}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "操作记录保存失败");
     } finally {
       setOperationSaving(false);
     }
+  };
+
+  const removeOperation = async (task: Task, operationType: OperationEvent["operation_type"]) => {
+    if (!actor) { setShowName(true); return; }
+    setOperationSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.task_id)}/operations`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actor, operation_type: operationType }),
+      });
+      const payload = await response.json() as { deleted_id?: number; error?: string };
+      if (!response.ok || payload.deleted_id == null) throw new Error(payload.error || "撤回操作失败");
+      setData((current) => ({ ...current, operations: (current.operations || []).filter((event) => event.id !== payload.deleted_id) }));
+      setMessage(`已撤回本轮${operationLabels[operationType]} · ${actor}`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "撤回操作失败"); }
+    finally { setOperationSaving(false); }
   };
 
   const downloadTasks = () => {
@@ -348,14 +366,14 @@ export function DashboardClient() {
 
         {loading ? <LoadingRows /> : filtered.length ? (
           <div className="task-list">
-            {filtered.map((task) => <TaskRow key={task.task_id} task={task} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === task.note_id)} saving={saving === task.task_id} operationSaving={operationSaving} onUpdate={updateTask} onAddOperation={addOperation} onOpen={setSelected} />)}
+            {filtered.map((task) => <TaskRow key={task.task_id} task={task} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === task.note_id)} saving={saving === task.task_id} operationSaving={operationSaving} onUpdate={updateTask} onAddOperation={addOperation} onRemoveOperation={removeOperation} onOpen={setSelected} />)}
           </div>
         ) : <div className="empty-state"><b>当前筛选下没有任务</b><span>调整优先级、状态或负责人筛选条件。</span></div>}
       </section>
 
       {message && <div className={`toast ${message.includes("失败") || message.includes("只读") ? "warning" : ""}`}>{message}</div>}
       {showName && <NameDialog value={nameDraft} onChange={setNameDraft} onSave={saveActor} onClose={() => actor && setShowName(false)} />}
-      {selected && <TaskDrawer task={selected} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === selected.note_id)} saving={saving === selected.task_id} operationSaving={operationSaving} onClose={() => setSelected(null)} onUpdate={updateTask} onAddOperation={addOperation} />}
+      {selected && <TaskDrawer task={selected} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === selected.note_id)} saving={saving === selected.task_id} operationSaving={operationSaving} onClose={() => setSelected(null)} onUpdate={updateTask} onAddOperation={addOperation} onRemoveOperation={removeOperation} />}
     </main>
   );
 }
@@ -370,7 +388,8 @@ function RiskMatrix({ tasks }: { tasks: Task[] }) {
   return <div className="risk-matrix"><span className="axis y">评论多</span><span className="axis x">消耗高</span><div className="matrix-quadrant q1">优先</div><div className="matrix-quadrant q2">活跃</div>{tasks.map((task, index) => <button key={task.task_id} title={`${task.nickname}｜¥${money(task.spend_3d)}｜${task.comments_total}条评论`} className={`matrix-point ${task.priority.toLowerCase()}`} style={{ left: `${8 + Math.sqrt(task.spend_3d / maxSpend) * 82}%`, bottom: `${8 + Math.sqrt(task.comments_total / maxComments) * 78}%`, zIndex: tasks.length - index }} />)}</div>;
 }
 
-function TaskRow({ task, actor, operations, saving, operationSaving, onUpdate, onAddOperation, onOpen }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; operationSaving: boolean; onUpdate: (task: Task, changes: Partial<Task>) => void; onAddOperation: (task: Task, operationType: OperationEvent["operation_type"], detail: string) => void; onOpen: (task: Task) => void }) {
+function TaskRow({ task, actor, operations, saving, operationSaving, onUpdate, onAddOperation, onRemoveOperation, onOpen }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; operationSaving: boolean; onUpdate: (task: Task, changes: Partial<Task>) => void; onAddOperation: (task: Task, operationType: OperationEvent["operation_type"], detail: string) => void; onRemoveOperation: (task: Task, operationType: OperationEvent["operation_type"]) => void; onOpen: (task: Task) => void }) {
+  const clickTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const operationCount = (type: OperationEvent["operation_type"]) => operations.filter((event) => event.operation_type === type).length;
   return <article className={`task-row ${task.priority.toLowerCase()} ${task.status === "completed" ? "completed" : ""}`}>
     <div className="task-main" onClick={() => onOpen(task)} role="button" tabIndex={0}>
@@ -381,13 +400,13 @@ function TaskRow({ task, actor, operations, saving, operationSaving, onUpdate, o
     <div className="task-actions">
       <div className="owner-state"><button className={task.owner ? "owner-pill chosen" : "owner-pill"} onClick={() => onUpdate(task, { owner: actor })}>{task.owner || "领取任务"}</button><span className={`status-badge ${task.status}`}>{statusText[task.status]}</span></div>
       <ResolutionControl value={task.resolution_status || "pending"} disabled={saving} onChange={(value) => onUpdate(task, { resolution_status: value })} />
-      <div className="operation-mini">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => <button key={type} disabled={operationSaving} onClick={(event) => { event.stopPropagation(); onAddOperation(task, type, ""); }} title={`点击后${operationLabels[type]}次数 +1，历史可在详情中查看`}><span>+1 {operationLabels[type]}</span><b>{operationCount(type)}</b></button>)}</div>
+      <div className="operation-mini">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => { const recorded = operations.some((event) => event.task_id === task.task_id && event.operation_type === type); return <button key={type} className={recorded ? "recorded" : ""} disabled={operationSaving} onClick={(event) => { event.stopPropagation(); if (recorded) return; clearTimeout(clickTimers.current[type]); clickTimers.current[type] = setTimeout(() => onAddOperation(task, type, ""), 260); }} onDoubleClick={(event) => { event.stopPropagation(); clearTimeout(clickTimers.current[type]); if (recorded) onRemoveOperation(task, type); }} title={recorded ? "本轮已记录；双击撤回" : "单击记录本轮操作；每轮限一次"}><span>{recorded ? "✓" : "+1"} {operationLabels[type]}</span><b>{operationCount(type)}</b></button>; })}</div>
       <button className="note-preview" onDoubleClick={() => onOpen(task)} onClick={() => onOpen(task)} title="双击进入备注编辑"><span>备注</span><b>{plainText(task.notes_html || task.notes) || "双击编辑"}</b></button>
     </div>
   </article>;
 }
 
-function TaskDrawer({ task, actor, operations, saving, operationSaving, onClose, onUpdate, onAddOperation }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; operationSaving: boolean; onClose: () => void; onUpdate: (task: Task, changes: Partial<Task>) => void; onAddOperation: (task: Task, operationType: OperationEvent["operation_type"], detail: string) => void }) {
+function TaskDrawer({ task, actor, operations, saving, operationSaving, onClose, onUpdate, onAddOperation, onRemoveOperation }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; operationSaving: boolean; onClose: () => void; onUpdate: (task: Task, changes: Partial<Task>) => void; onAddOperation: (task: Task, operationType: OperationEvent["operation_type"], detail: string) => void; onRemoveOperation: (task: Task, operationType: OperationEvent["operation_type"]) => void }) {
   const [noteDraft, setNoteDraft] = useState(task.notes_html || task.notes || "");
   const [editingNote, setEditingNote] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -420,7 +439,7 @@ function TaskDrawer({ task, actor, operations, saving, operationSaving, onClose,
     <div className="drawer-metrics"><div><span>近3日消耗</span><b>¥{money(task.spend_3d)}</b><small>近7日 ¥{money(task.spend_7d)}</small></div><div><span>累计评论</span><b>{task.comments_total}</b><small>近7日 +{task.comments_7d ?? "—"}</small></div><div><span>行动点击</span><b>{task.action_clicks_3d}</b><small>近3日</small></div></div>
     <section className="drawer-section"><h4>进入原因</h4><div className="reason-chips large">{task.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div></section>
     <section className="drawer-section"><div className="section-line"><h4>本轮任务状态</h4><span>选择后立即同步</span></div><ResolutionControl value={task.resolution_status || "pending"} disabled={saving} onChange={(value) => onUpdate(task, { resolution_status: value })} /><p className="resolution-help">“已完成”或“本轮无需处理”均代表本轮任务结束；四项操作按钮仅记录次数。</p></section>
-    <section className="drawer-section operation-section"><div className="section-line"><h4>实际操作记录</h4><span>可重复记录</span></div><div className="operation-tabs">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => { const total = operations.filter((event) => event.operation_type === type).length; const current = operations.filter((event) => event.operation_type === type && event.cycle_number === task.cycle_number).length; return <button key={type} className={selectedOperation === type ? "active" : ""} onClick={() => setSelectedOperation(type)}><span>{operationLabels[type]}</span><b>{total}</b><small>本轮 {current} 次</small></button>; })}</div><div className="operation-entry"><input value={operationDetail} onChange={(event) => setOperationDetail(event.target.value)} placeholder={`补充本次${operationLabels[selectedOperation]}说明（可选）`} /><button disabled={operationSaving} onClick={() => { onAddOperation(task, selectedOperation, operationDetail); setOperationDetail(""); }}>+ 记录一次{operationLabels[selectedOperation]}</button></div><div className="operation-history"><h5>{operationLabels[selectedOperation]}历史记录</h5>{operations.filter((event) => event.operation_type === selectedOperation).length ? operations.filter((event) => event.operation_type === selectedOperation).map((event) => <div className="history-item" key={event.id}><i /><div><b>{event.actor} · 第{event.cycle_number}轮</b><span>{event.detail || `完成一次${operationLabels[event.operation_type]}`}</span></div><time>{new Date(event.created_at).toLocaleString("zh-CN", { hour12: false })}</time></div>) : <p className="history-empty">还没有记录，完成一次操作后点击上方按钮添加。</p>}</div></section>
+    <section className="drawer-section operation-section"><div className="section-line"><h4>实际操作记录</h4><span>每项每轮限一次</span></div><div className="operation-tabs">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => { const total = operations.filter((event) => event.operation_type === type).length; const current = operations.filter((event) => event.task_id === task.task_id && event.operation_type === type).length; return <button key={type} className={selectedOperation === type ? "active" : ""} onClick={() => setSelectedOperation(type)}><span>{operationLabels[type]}</span><b>{total}</b><small>{current ? "本轮已记录" : "本轮未记录"}</small></button>; })}</div><div className="operation-entry"><input value={operationDetail} onChange={(event) => setOperationDetail(event.target.value)} placeholder={`补充本轮${operationLabels[selectedOperation]}说明（可选）`} disabled={operations.some((event) => event.task_id === task.task_id && event.operation_type === selectedOperation)} /><button disabled={operationSaving || operations.some((event) => event.task_id === task.task_id && event.operation_type === selectedOperation)} onClick={() => { onAddOperation(task, selectedOperation, operationDetail); setOperationDetail(""); }}>{operations.some((event) => event.task_id === task.task_id && event.operation_type === selectedOperation) ? "本轮已记录" : `+ 记录本轮${operationLabels[selectedOperation]}`}</button>{operations.some((event) => event.task_id === task.task_id && event.operation_type === selectedOperation) && <button className="revoke-operation" disabled={operationSaving} onClick={() => onRemoveOperation(task, selectedOperation)}>撤回本轮记录</button>}</div><p className="operation-tip">列表按钮：单击增加本轮记录，双击撤回；同一项每轮最多一次。</p><div className="operation-history"><h5>{operationLabels[selectedOperation]}历史记录</h5>{operations.filter((event) => event.operation_type === selectedOperation).length ? operations.filter((event) => event.operation_type === selectedOperation).map((event) => <div className="history-item" key={event.id}><i /><div><b>{event.actor} · 第{event.cycle_number}轮</b><span>{event.detail || `完成一次${operationLabels[event.operation_type]}`}</span></div><time>{new Date(event.created_at).toLocaleString("zh-CN", { hour12: false })}</time></div>) : <p className="history-empty">还没有记录，完成操作后点击按钮添加。</p>}</div></section>
     <section className="drawer-section form-section"><h4>处理记录</h4><label>本轮铺设数量<input type="number" min="0" value={countDraft} onChange={(event) => setCountDraft(Number(event.target.value))} onBlur={() => countDraft !== task.placement_count && onUpdate(task, { placement_count: countDraft })} /></label><label>风险标签<select value={riskDraft} onChange={(event) => { setRiskDraft(event.target.value); onUpdate(task, { risk_tag: event.target.value }); }}><option value="">无风险</option><option>疑似车商</option><option>负面评论</option><option>价格争议</option><option>品牌质疑</option><option>需升级处理</option></select></label><div className="full rich-note"><div className="section-line"><h4>备注</h4><span>{editingNote ? "编辑中" : "双击文字进入编辑"}</span></div>{editingNote ? <><div className="editor-toolbar"><button type="button" onClick={() => document.execCommand("bold")}>加粗</button><button type="button" onClick={() => document.execCommand("insertUnorderedList")}>列表</button><button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "上传中…" : "插入图片"}</button><input ref={fileRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => void insertImage(event.target.files?.[0])} /></div><div ref={editorRef} className="rich-editor" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: noteDraft }} onInput={(event) => setNoteDraft(event.currentTarget.innerHTML)} /><div className="note-actions"><button className="secondary" onClick={() => { setNoteDraft(task.notes_html || task.notes || ""); setEditingNote(false); }}>取消</button><button onClick={() => { onUpdate(task, { notes_html: noteDraft }); setEditingNote(false); }} disabled={saving}>保存备注</button></div></> : <div className="rich-note-readonly" onDoubleClick={() => setEditingNote(true)} tabIndex={0}><p>{plainText(noteDraft) || "暂无备注，双击此处添加文字或图片。"}</p>{(noteDraft.match(/<img\b/gi) || []).length > 0 && <span>含 {(noteDraft.match(/<img\b/gi) || []).length} 张图片</span>}</div>}</div></section>
     <footer className="drawer-footer"><span>当前操作人：<b>{actor || "未选择"}</b></span><span>{saving ? "正在同步…" : `版本 ${task.version}`}</span></footer>
   </aside></div>;
