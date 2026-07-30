@@ -48,9 +48,11 @@ export async function ensureSchema(database = getD1()) {
       dealer_guard_status TEXT NOT NULL DEFAULT 'pending',
       reply_status TEXT NOT NULL DEFAULT 'pending',
       recheck_status TEXT NOT NULL DEFAULT 'pending',
+      resolution_status TEXT NOT NULL DEFAULT 'pending',
       placement_count INTEGER NOT NULL DEFAULT 0,
       risk_tag TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
+      notes_html TEXT NOT NULL DEFAULT '',
       version INTEGER NOT NULL DEFAULT 1,
       completed_at TEXT,
       completed_comments INTEGER,
@@ -75,10 +77,22 @@ export async function ensureSchema(database = getD1()) {
       detail TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    database.prepare(`CREATE TABLE IF NOT EXISTS note_uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      note_id TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      object_key TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     database.prepare("CREATE INDEX IF NOT EXISTS tasks_note_cycle_idx ON maintenance_tasks(note_id, cycle_number DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS tasks_status_priority_idx ON maintenance_tasks(status, priority, score DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS activity_task_idx ON activity_log(task_id, id DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS operation_note_idx ON operation_events(note_id, id DESC)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS upload_task_idx ON note_uploads(task_id, id DESC)"),
   ]);
   for (const statement of [
     "ALTER TABLE maintenance_tasks ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'",
@@ -86,6 +100,8 @@ export async function ensureSchema(database = getD1()) {
     "ALTER TABLE maintenance_tasks ADD COLUMN dealer_guard_status TEXT NOT NULL DEFAULT 'pending'",
     "ALTER TABLE maintenance_tasks ADD COLUMN reply_status TEXT NOT NULL DEFAULT 'pending'",
     "ALTER TABLE maintenance_tasks ADD COLUMN recheck_status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE maintenance_tasks ADD COLUMN resolution_status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE maintenance_tasks ADD COLUMN notes_html TEXT NOT NULL DEFAULT ''",
   ]) {
     try {
       await database.prepare(statement).run();

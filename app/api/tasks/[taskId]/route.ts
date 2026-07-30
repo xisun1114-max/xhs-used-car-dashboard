@@ -15,15 +15,18 @@ const allowedFields: Record<string, string> = {
   dealer_guard_status: "dealer_guard_status",
   reply_status: "reply_status",
   recheck_status: "recheck_status",
+  resolution_status: "resolution_status",
+  notes_html: "notes_html",
 };
 
-const statusFields = [
-  "review_status",
-  "placement_status",
-  "dealer_guard_status",
-  "reply_status",
-  "recheck_status",
-];
+function sanitizeNotesHtml(input: unknown) {
+  let html = String(input || "").slice(0, 100_000);
+  html = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  html = html.replace(/javascript:/gi, "");
+  html = html.replace(/<(?!\/?(?:p|br|b|strong|i|em|ul|ol|li|img|a)(?:\s|>|\/))[^>]+>/gi, "");
+  return html;
+}
 
 export async function PATCH(request: Request, context: { params: Promise<{ taskId: string }> }) {
   try {
@@ -38,7 +41,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     const entries = Object.entries(payload.changes || {}).filter(([key]) => key in allowedFields);
     if (!entries.length) return Response.json({ error: "没有可保存的修改" }, { status: 400 });
     for (const [key, value] of entries) {
-      if (statusFields.includes(key) && !["pending", "done", "skipped"].includes(String(value))) {
+      if (key === "resolution_status" && !["pending", "done", "skipped"].includes(String(value))) {
         return Response.json({ error: "无效的处理状态" }, { status: 400 });
       }
     }
@@ -53,17 +56,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     }
 
     const next = { ...current };
-    for (const [key, value] of entries) next[allowedFields[key]] = value;
+    for (const [key, value] of entries) next[allowedFields[key]] = key === "notes_html" ? sanitizeNotesHtml(value) : value;
     if (!String(next.owner || "").trim()) next.owner = actor;
-    const completed = statusFields.every((field) => ["done", "skipped"].includes(String(next[field] || "pending")));
-    const started = statusFields.some((field) => String(next[field] || "pending") !== "pending");
-    const status = completed ? "completed" : started ? "in_progress" : "assigned";
+    const resolution = String(next.resolution_status || "pending");
+    const completed = resolution === "done" || resolution === "skipped";
+    const status = completed ? "completed" : "assigned";
 
     const setters: string[] = [];
     const values: unknown[] = [];
     for (const [key, value] of entries) {
       setters.push(`${allowedFields[key]}=?`);
-      values.push(typeof value === "boolean" ? Number(value) : value);
+      values.push(typeof value === "boolean" ? Number(value) : key === "notes_html" ? sanitizeNotesHtml(value) : value);
     }
     if (!entries.some(([key]) => key === "owner") && !String(current.owner || "").trim()) {
       setters.push("owner=?");

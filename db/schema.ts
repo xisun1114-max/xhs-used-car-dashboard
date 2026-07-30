@@ -40,9 +40,11 @@ export const maintenanceTasks = sqliteTable("maintenance_tasks", {
   dealerGuardStatus: text("dealer_guard_status").notNull().default("pending"),
   replyStatus: text("reply_status").notNull().default("pending"),
   recheckStatus: text("recheck_status").notNull().default("pending"),
+  resolutionStatus: text("resolution_status").notNull().default("pending"),
   placementCount: integer("placement_count").notNull().default(0),
   riskTag: text("risk_tag").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  notesHtml: text("notes_html").notNull().default(""),
   version: integer("version").notNull().default(1),
   completedAt: text("completed_at"),
   completedComments: integer("completed_comments"),
@@ -67,5 +69,17 @@ export const operationEvents = sqliteTable("operation_events", {
   operationType: text("operation_type").notNull(),
   actor: text("actor").notNull(),
   detail: text("detail").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const noteUploads = sqliteTable("note_uploads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: text("task_id").notNull(),
+  noteId: text("note_id").notNull(),
+  actor: text("actor").notNull(),
+  objectKey: text("object_key").notNull(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
