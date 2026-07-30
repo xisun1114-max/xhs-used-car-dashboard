@@ -171,25 +171,21 @@ def build_payload(source_root: Path, run_day: date) -> dict:
     frame = pd.DataFrame(rows)
     frame["spend_rank"] = percentile_rank(frame["spend_3d"])
     frame["comment_rank"] = percentile_rank(frame["comments_total"])
-    top_spend_ids = set(frame.nlargest(10, "spend_3d").loc[lambda x: x["spend_3d"] > 0, "note_id"])
-    top_comment_ids = set(frame.nlargest(10, "comments_total").loc[lambda x: x["comments_total"] > 0, "note_id"])
+    top_spend_ids = set(frame.nlargest(5, "spend_3d").loc[lambda x: x["spend_3d"] > 0, "note_id"])
+    top_comment_ids = set(frame.nlargest(5, "comments_total").loc[lambda x: x["comments_total"] > 0, "note_id"])
 
     tasks = []
     for row in frame.to_dict("records"):
         comments3 = row["comments_3d"] or 0
         comments7 = row["comments_7d"] or 0
         p0_reasons = []
-        if row["spend_3d"] >= 100:
-            p0_reasons.append("近3日聚光消费≥100元")
         if row["note_id"] in top_spend_ids:
-            p0_reasons.append("近3日消费排名前10")
-        if row["comments_total"] >= 30:
-            p0_reasons.append("累计评论≥30条")
-        if row["note_id"] in top_comment_ids:
-            p0_reasons.append("累计评论排名前10")
-        if comments3 >= 3:
-            p0_reasons.append("近3日新增评论≥3条")
-        if row["spend_3d"] >= 50 and row["comments_total"] >= 20:
+            p0_reasons.append("近3日消费排名前5")
+        if row["note_id"] in top_comment_ids and row["spend_3d"] > 0:
+            p0_reasons.append("累计评论前5且仍在投流")
+        if comments3 >= 3 and row["spend_3d"] > 0:
+            p0_reasons.append("近3日新增评论≥3且仍在投流")
+        if row["spend_3d"] >= 100 and row["comments_total"] >= 20:
             p0_reasons.append("高消耗且高评论")
 
         priority = None
@@ -214,6 +210,15 @@ def build_payload(source_root: Path, run_day: date) -> dict:
         if priority is None:
             continue
 
+        # P0 is checked every day. P1/P2 are deterministically staggered so
+        # the whole team does not receive the same 3-day/7-day wave at once.
+        schedule_seed = int(row["note_id"][-4:], 16)
+        urgent_growth = comments3 >= 3
+        if priority == "P1" and not urgent_growth and schedule_seed % 3 != run_day.toordinal() % 3:
+            continue
+        if priority == "P2" and schedule_seed % 7 != run_day.toordinal() % 7:
+            continue
+
         spend_score = min(35, round(35 * row["spend_rank"]))
         total_comment_score = min(20, round(20 * row["comment_rank"]))
         growth_score = min(20, comments3 * 5)
@@ -236,11 +241,11 @@ def build_payload(source_root: Path, run_day: date) -> dict:
                 "cycle_number": 1,
                 "status": "pending",
                 "owner": "",
-                "review_done": False,
-                "placement_done": False,
-                "dealer_guard_done": False,
-                "reply_done": False,
-                "recheck_done": False,
+                "review_status": "pending",
+                "placement_status": "pending",
+                "dealer_guard_status": "pending",
+                "reply_status": "pending",
+                "recheck_status": "pending",
                 "placement_count": 0,
                 "risk_tag": "",
                 "notes": "",
@@ -265,11 +270,11 @@ def build_payload(source_root: Path, run_day: date) -> dict:
             "eligible_notes": len(frame),
         },
         "thresholds": {
-            "p0_spend_3d": 100,
-            "p0_comments_total": 30,
+            "rules_version": 2,
+            "p0_high_spend_and_comments": "近3日消费≥100元且累计评论≥20条",
             "p0_comments_3d": 3,
-            "p0_top_n_spend": 10,
-            "p0_top_n_comments": 10,
+            "p0_top_n_spend": 5,
+            "p0_top_n_comments_active": 5,
             "p1_spend_3d": 20,
             "p1_spend_7d": 100,
             "p2_comments_total": 20,

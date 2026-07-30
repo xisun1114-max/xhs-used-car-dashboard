@@ -10,7 +10,20 @@ const allowedFields: Record<string, string> = {
   placement_count: "placement_count",
   risk_tag: "risk_tag",
   notes: "notes",
+  review_status: "review_status",
+  placement_status: "placement_status",
+  dealer_guard_status: "dealer_guard_status",
+  reply_status: "reply_status",
+  recheck_status: "recheck_status",
 };
+
+const statusFields = [
+  "review_status",
+  "placement_status",
+  "dealer_guard_status",
+  "reply_status",
+  "recheck_status",
+];
 
 export async function PATCH(request: Request, context: { params: Promise<{ taskId: string }> }) {
   try {
@@ -24,6 +37,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     if (!actor) return Response.json({ error: "请先选择操作人" }, { status: 400 });
     const entries = Object.entries(payload.changes || {}).filter(([key]) => key in allowedFields);
     if (!entries.length) return Response.json({ error: "没有可保存的修改" }, { status: 400 });
+    for (const [key, value] of entries) {
+      if (statusFields.includes(key) && !["pending", "done", "skipped"].includes(String(value))) {
+        return Response.json({ error: "无效的处理状态" }, { status: 400 });
+      }
+    }
 
     const db = getD1();
     await ensureSchema(db);
@@ -37,9 +55,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     const next = { ...current };
     for (const [key, value] of entries) next[allowedFields[key]] = value;
     if (!String(next.owner || "").trim()) next.owner = actor;
-    const stepFields = ["review_done", "placement_done", "dealer_guard_done", "reply_done", "recheck_done"];
-    const completed = stepFields.every((field) => Boolean(next[field]));
-    const started = stepFields.some((field) => Boolean(next[field]));
+    const completed = statusFields.every((field) => ["done", "skipped"].includes(String(next[field] || "pending")));
+    const started = statusFields.some((field) => String(next[field] || "pending") !== "pending");
     const status = completed ? "completed" : started ? "in_progress" : "assigned";
 
     const setters: string[] = [];

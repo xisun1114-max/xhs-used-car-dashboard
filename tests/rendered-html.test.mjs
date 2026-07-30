@@ -19,7 +19,10 @@ test("ships the supplier comment maintenance workspace and real task payload", a
   assert.match(client, /复查完成/);
   assert.equal(payload.scope.category, "供应商");
   assert.equal(payload.scope.published_since, "2026-06-01");
-  assert.equal(payload.summary.total, 81);
-  assert.equal(payload.summary.p0, 48);
+  assert.match(client, /本轮无需处理/);
+  assert.match(client, /置顶评论/);
+  assert.match(client, /下载当前清单/);
+  assert.equal(payload.summary.total, 39);
+  assert.equal(payload.summary.p0, 14);
   assert.ok(payload.tasks.every((task) => task.note_id && task.link));
 });

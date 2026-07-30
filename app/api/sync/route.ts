@@ -95,6 +95,16 @@ export async function POST(request: Request) {
         held += 1;
       }
     }
+    const incomingNoteIds = new Set(payload.tasks.map((task) => task.note_id));
+    const unclaimed = await db.prepare(
+      "SELECT task_id, note_id FROM maintenance_tasks WHERE status='pending' AND owner=''",
+    ).all<{ task_id: string; note_id: string }>();
+    for (const row of unclaimed.results) {
+      if (!incomingNoteIds.has(row.note_id)) {
+        await db.prepare("UPDATE maintenance_tasks SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE task_id=?")
+          .bind(row.task_id).run();
+      }
+    }
     return Response.json({ ok: true, received: payload.tasks.length, created, refreshed, held });
   } catch (error) {
     return Response.json(

@@ -30,11 +30,29 @@ type Task = {
   dealer_guard_done: boolean;
   reply_done: boolean;
   recheck_done: boolean;
+  review_status: StepStatus;
+  placement_status: StepStatus;
+  dealer_guard_status: StepStatus;
+  reply_status: StepStatus;
+  recheck_status: StepStatus;
   placement_count: number;
   risk_tag: string;
   notes: string;
   version: number;
   updated_at?: string;
+};
+
+type StepStatus = "pending" | "done" | "skipped";
+
+type OperationEvent = {
+  id: number;
+  task_id: string;
+  note_id: string;
+  cycle_number: number;
+  operation_type: "placement" | "dealer_guard" | "pinned_comment" | "official_reply";
+  actor: string;
+  detail: string;
+  created_at: string;
 };
 
 type DashboardData = {
@@ -48,15 +66,23 @@ type DashboardData = {
   scope?: { eligible_notes?: number; published_since?: string };
   tasks: Task[];
   owners?: string[];
+  operations?: OperationEvent[];
 };
 
 const steps = [
-  ["review_done", "人工审核"],
-  ["placement_done", "二次铺设"],
-  ["dealer_guard_done", "防车商"],
-  ["reply_done", "评论回复"],
-  ["recheck_done", "复查完成"],
+  ["review_status", "人工审核"],
+  ["placement_status", "二次铺设"],
+  ["dealer_guard_status", "防车商"],
+  ["reply_status", "评论回复"],
+  ["recheck_status", "复查完成"],
 ] as const;
+
+const operationLabels = {
+  placement: "铺设",
+  dealer_guard: "防车商",
+  pinned_comment: "置顶评论",
+  official_reply: "官号回复",
+} as const;
 
 const priorityText = { P0: "核心·每日", P1: "重点·3日", P2: "巡检·7日" };
 const statusText = { pending: "待领取", assigned: "已领取", in_progress: "处理中", completed: "本轮完成" };
@@ -70,7 +96,7 @@ function compact(value: number) {
 }
 
 function progress(task: Task) {
-  return steps.filter(([key]) => task[key]).length;
+  return steps.filter(([key]) => task[key] && task[key] !== "pending").length;
 }
 
 export function DashboardClient() {
@@ -87,27 +113,20 @@ export function DashboardClient() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("priority");
   const [saving, setSaving] = useState("");
+  const [operationSaving, setOperationSaving] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const [fallbackResponse, apiResponse] = await Promise.all([
-        fetch("/data/dashboard.json", { cache: "no-store" }),
-        fetch("/api/dashboard", { cache: "no-store" }),
-      ]);
+      const fallbackResponse = await fetch("/data/dashboard.json", { cache: "no-store" });
       const fallback = (await fallbackResponse.json()) as DashboardData;
-      let api = apiResponse.ok ? ((await apiResponse.json()) as DashboardData) : { tasks: [] };
-      if (!api.tasks?.length) {
-        const sync = await fetch("/api/sync", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(fallback),
-        });
-        if (sync.ok) {
-          const refreshed = await fetch("/api/dashboard", { cache: "no-store" });
-          if (refreshed.ok) api = (await refreshed.json()) as DashboardData;
-        }
-      }
+      await fetch("/api/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(fallback),
+      });
+      const apiResponse = await fetch("/api/dashboard", { cache: "no-store" });
+      const api = apiResponse.ok ? ((await apiResponse.json()) as DashboardData) : { tasks: [] };
       setData(api.tasks?.length ? api : fallback);
       if (!api.tasks?.length) setMessage("当前为只读数据预览，协作保存服务暂未连接。");
     } catch {
@@ -167,6 +186,49 @@ export function DashboardClient() {
     } finally {
       setSaving("");
     }
+  };
+
+  const addOperation = async (task: Task, operationType: OperationEvent["operation_type"], detail: string) => {
+    if (!actor) {
+      setShowName(true);
+      return;
+    }
+    setOperationSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.task_id)}/operations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actor, operation_type: operationType, detail }),
+      });
+      const payload = await response.json() as { event?: OperationEvent; error?: string };
+      if (!response.ok || !payload.event) throw new Error(payload.error || "操作记录保存失败");
+      setData((current) => ({ ...current, operations: [payload.event!, ...(current.operations || [])] }));
+      setMessage(`已记录一次${operationLabels[operationType]} · ${actor}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "操作记录保存失败");
+    } finally {
+      setOperationSaving(false);
+    }
+  };
+
+  const downloadTasks = () => {
+    const operationRows = data.operations || [];
+    const headers = ["优先级", "笔记ID", "笔记标题", "笔记链接", "博主昵称", "发布日期", "维护轮次", "进入原因", "近3日聚光消费", "累计评论", "近3日新增评论", "负责人", "当前状态", "人工审核", "二次铺设", "防车商", "评论回复", "复查完成", "累计铺设次数", "累计防车商次数", "累计置顶评论次数", "累计官号回复次数", "处理备注"];
+    const statusLabel = (value: StepStatus) => value === "done" ? "已完成" : value === "skipped" ? "本轮无需处理" : "待处理";
+    const escape = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = filtered.map((task) => {
+      const noteOperations = operationRows.filter((event) => event.note_id === task.note_id);
+      const count = (type: OperationEvent["operation_type"]) => noteOperations.filter((event) => event.operation_type === type).length;
+      return [task.priority, task.note_id, task.title, task.link, task.nickname, task.publish_date, task.cycle_number, task.reasons.join("；"), task.spend_3d, task.comments_total, task.comments_3d ?? "", task.owner, statusText[task.status], statusLabel(task.review_status), statusLabel(task.placement_status), statusLabel(task.dealer_guard_status), statusLabel(task.reply_status), statusLabel(task.recheck_status), count("placement"), count("dealer_guard"), count("pinned_comment"), count("official_reply"), task.notes].map(escape).join(",");
+    });
+    const blob = new Blob(["\ufeff", [headers.map(escape).join(","), ...rows].join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `供应商评论维护清单_${data.task_date || new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const owners = useMemo(() => Array.from(new Set([actor, ...(data.owners || []), ...data.tasks.map((task) => task.owner)].filter(Boolean))).sort(), [actor, data.owners, data.tasks]);
@@ -289,18 +351,19 @@ export function DashboardClient() {
           <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="排序方式">
             <option value="priority">按优先级</option><option value="spend">按近3日消耗</option><option value="comments">按累计评论</option><option value="growth">按评论增长</option><option value="progress">按完成进度</option>
           </select>
+          <button className="download-button" onClick={downloadTasks}>下载当前清单 ↓</button>
         </div>
 
         {loading ? <LoadingRows /> : filtered.length ? (
           <div className="task-list">
-            {filtered.map((task) => <TaskRow key={task.task_id} task={task} actor={actor} saving={saving === task.task_id} onUpdate={updateTask} onOpen={setSelected} />)}
+            {filtered.map((task) => <TaskRow key={task.task_id} task={task} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === task.note_id)} saving={saving === task.task_id} onUpdate={updateTask} onOpen={setSelected} />)}
           </div>
         ) : <div className="empty-state"><b>当前筛选下没有任务</b><span>调整优先级、状态或负责人筛选条件。</span></div>}
       </section>
 
       {message && <div className={`toast ${message.includes("失败") || message.includes("只读") ? "warning" : ""}`}>{message}</div>}
       {showName && <NameDialog value={nameDraft} onChange={setNameDraft} onSave={saveActor} onClose={() => actor && setShowName(false)} />}
-      {selected && <TaskDrawer task={selected} actor={actor} saving={saving === selected.task_id} onClose={() => setSelected(null)} onUpdate={updateTask} />}
+      {selected && <TaskDrawer task={selected} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === selected.note_id)} saving={saving === selected.task_id} operationSaving={operationSaving} onClose={() => setSelected(null)} onUpdate={updateTask} onAddOperation={addOperation} />}
     </main>
   );
 }
@@ -315,8 +378,9 @@ function RiskMatrix({ tasks }: { tasks: Task[] }) {
   return <div className="risk-matrix"><span className="axis y">评论多</span><span className="axis x">消耗高</span><div className="matrix-quadrant q1">优先</div><div className="matrix-quadrant q2">活跃</div>{tasks.map((task, index) => <button key={task.task_id} title={`${task.nickname}｜¥${money(task.spend_3d)}｜${task.comments_total}条评论`} className={`matrix-point ${task.priority.toLowerCase()}`} style={{ left: `${8 + Math.sqrt(task.spend_3d / maxSpend) * 82}%`, bottom: `${8 + Math.sqrt(task.comments_total / maxComments) * 78}%`, zIndex: tasks.length - index }} />)}</div>;
 }
 
-function TaskRow({ task, actor, saving, onUpdate, onOpen }: { task: Task; actor: string; saving: boolean; onUpdate: (task: Task, changes: Partial<Task>) => void; onOpen: (task: Task) => void }) {
+function TaskRow({ task, actor, operations, saving, onUpdate, onOpen }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; onUpdate: (task: Task, changes: Partial<Task>) => void; onOpen: (task: Task) => void }) {
   const done = progress(task);
+  const operationCount = (type: OperationEvent["operation_type"]) => operations.filter((event) => event.operation_type === type).length;
   return <article className={`task-row ${task.priority.toLowerCase()} ${task.status === "completed" ? "completed" : ""}`}>
     <div className="task-main" onClick={() => onOpen(task)} role="button" tabIndex={0}>
       <div className="priority-cell"><span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span><small>{priorityText[task.priority]}</small><b>{task.score}<em>分</em></b></div>
@@ -325,16 +389,19 @@ function TaskRow({ task, actor, saving, onUpdate, onOpen }: { task: Task; actor:
     </div>
     <div className="task-actions">
       <div className="owner-state"><button className={task.owner ? "owner-pill chosen" : "owner-pill"} onClick={() => onUpdate(task, { owner: actor })}>{task.owner || "领取任务"}</button><span className={`status-badge ${task.status}`}>{statusText[task.status]}</span></div>
-      <div className="step-strip">{steps.map(([key, label]) => <label key={key} className={task[key] ? "checked" : ""}><input type="checkbox" checked={task[key]} disabled={saving} onChange={() => onUpdate(task, { [key]: !task[key] } as Partial<Task>)} /><i>{task[key] ? "✓" : ""}</i><span>{label}</span></label>)}</div>
+      <div className="step-strip">{steps.map(([key, label]) => <label key={key} className={task[key] === "done" ? "checked" : task[key] === "skipped" ? "skipped" : ""}><span>{label}</span><select aria-label={label} value={task[key] || "pending"} disabled={saving} onChange={(event) => onUpdate(task, { [key]: event.target.value as StepStatus } as Partial<Task>)}><option value="pending">待处理</option><option value="done">已完成</option><option value="skipped">本轮无需处理</option></select></label>)}</div>
+      <div className="operation-mini">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => <button key={type} onClick={() => onOpen(task)} title="点击查看历史记录"><span>{operationLabels[type]}</span><b>{operationCount(type)}</b></button>)}</div>
       <div className="row-progress"><div><i style={{ width: `${done / steps.length * 100}%` }} /></div><span>{saving ? "保存中…" : `${done}/${steps.length}`}</span></div>
     </div>
   </article>;
 }
 
-function TaskDrawer({ task, actor, saving, onClose, onUpdate }: { task: Task; actor: string; saving: boolean; onClose: () => void; onUpdate: (task: Task, changes: Partial<Task>) => void }) {
+function TaskDrawer({ task, actor, operations, saving, operationSaving, onClose, onUpdate, onAddOperation }: { task: Task; actor: string; operations: OperationEvent[]; saving: boolean; operationSaving: boolean; onClose: () => void; onUpdate: (task: Task, changes: Partial<Task>) => void; onAddOperation: (task: Task, operationType: OperationEvent["operation_type"], detail: string) => void }) {
   const [noteDraft, setNoteDraft] = useState(task.notes || "");
   const [countDraft, setCountDraft] = useState(task.placement_count || 0);
   const [riskDraft, setRiskDraft] = useState(task.risk_tag || "");
+  const [selectedOperation, setSelectedOperation] = useState<OperationEvent["operation_type"]>("placement");
+  const [operationDetail, setOperationDetail] = useState("");
   useEffect(() => { setNoteDraft(task.notes || ""); setCountDraft(task.placement_count || 0); setRiskDraft(task.risk_tag || ""); }, [task]);
   return <div className="drawer-backdrop" onMouseDown={onClose}><aside className="task-drawer" onMouseDown={(event) => event.stopPropagation()}>
     <div className="drawer-head"><div><span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span><small>第{task.cycle_number}轮维护</small></div><button onClick={onClose} aria-label="关闭">×</button></div>
@@ -342,7 +409,8 @@ function TaskDrawer({ task, actor, saving, onClose, onUpdate }: { task: Task; ac
     <a className="open-note" href={task.link} target="_blank" rel="noreferrer">在小红书打开笔记 ↗</a>
     <div className="drawer-metrics"><div><span>近3日消耗</span><b>¥{money(task.spend_3d)}</b><small>近7日 ¥{money(task.spend_7d)}</small></div><div><span>累计评论</span><b>{task.comments_total}</b><small>近7日 +{task.comments_7d ?? "—"}</small></div><div><span>行动点击</span><b>{task.action_clicks_3d}</b><small>近3日</small></div></div>
     <section className="drawer-section"><h4>进入原因</h4><div className="reason-chips large">{task.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div></section>
-    <section className="drawer-section"><div className="section-line"><h4>本轮处理清单</h4><span>{progress(task)}/{steps.length}</span></div><div className="drawer-steps">{steps.map(([key, label], index) => <button key={key} className={task[key] ? "done" : ""} disabled={saving} onClick={() => onUpdate(task, { [key]: !task[key] } as Partial<Task>)}><i>{task[key] ? "✓" : index + 1}</i><span>{label}</span><small>{task[key] ? `${task.owner || actor} 已完成` : "点击标记完成"}</small></button>)}</div></section>
+    <section className="drawer-section"><div className="section-line"><h4>本轮处理清单</h4><span>{progress(task)}/{steps.length}</span></div><div className="drawer-steps">{steps.map(([key, label], index) => <div key={key} className={task[key] === "done" ? "done" : task[key] === "skipped" ? "skipped" : ""}><i>{task[key] === "done" ? "✓" : task[key] === "skipped" ? "—" : index + 1}</i><span>{label}</span><select value={task[key] || "pending"} disabled={saving} onChange={(event) => onUpdate(task, { [key]: event.target.value as StepStatus } as Partial<Task>)}><option value="pending">待处理</option><option value="done">已完成</option><option value="skipped">本轮无需处理</option></select></div>)}</div></section>
+    <section className="drawer-section operation-section"><div className="section-line"><h4>实际操作记录</h4><span>可重复记录</span></div><div className="operation-tabs">{(Object.keys(operationLabels) as Array<keyof typeof operationLabels>).map((type) => { const total = operations.filter((event) => event.operation_type === type).length; const current = operations.filter((event) => event.operation_type === type && event.cycle_number === task.cycle_number).length; return <button key={type} className={selectedOperation === type ? "active" : ""} onClick={() => setSelectedOperation(type)}><span>{operationLabels[type]}</span><b>{total}</b><small>本轮 {current} 次</small></button>; })}</div><div className="operation-entry"><input value={operationDetail} onChange={(event) => setOperationDetail(event.target.value)} placeholder={`补充本次${operationLabels[selectedOperation]}说明（可选）`} /><button disabled={operationSaving} onClick={() => { onAddOperation(task, selectedOperation, operationDetail); setOperationDetail(""); }}>+ 记录一次{operationLabels[selectedOperation]}</button></div><div className="operation-history"><h5>{operationLabels[selectedOperation]}历史记录</h5>{operations.filter((event) => event.operation_type === selectedOperation).length ? operations.filter((event) => event.operation_type === selectedOperation).map((event) => <div className="history-item" key={event.id}><i /><div><b>{event.actor} · 第{event.cycle_number}轮</b><span>{event.detail || `完成一次${operationLabels[event.operation_type]}`}</span></div><time>{new Date(event.created_at).toLocaleString("zh-CN", { hour12: false })}</time></div>) : <p className="history-empty">还没有记录，完成一次操作后点击上方按钮添加。</p>}</div></section>
     <section className="drawer-section form-section"><h4>处理记录</h4><label>本轮铺设数量<input type="number" min="0" value={countDraft} onChange={(event) => setCountDraft(Number(event.target.value))} onBlur={() => countDraft !== task.placement_count && onUpdate(task, { placement_count: countDraft })} /></label><label>风险标签<select value={riskDraft} onChange={(event) => { setRiskDraft(event.target.value); onUpdate(task, { risk_tag: event.target.value }); }}><option value="">无风险</option><option>疑似车商</option><option>负面评论</option><option>价格争议</option><option>品牌质疑</option><option>需升级处理</option></select></label><label className="full">处理备注<textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="记录评论情况、铺设内容或后续关注点" /><button onClick={() => onUpdate(task, { notes: noteDraft })} disabled={saving || noteDraft === task.notes}>保存备注</button></label></section>
     <footer className="drawer-footer"><span>当前操作人：<b>{actor || "未选择"}</b></span><span>{saving ? "正在同步…" : `版本 ${task.version}`}</span></footer>
   </aside></div>;

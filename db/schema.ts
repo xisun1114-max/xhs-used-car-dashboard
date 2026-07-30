@@ -35,6 +35,11 @@ export const maintenanceTasks = sqliteTable("maintenance_tasks", {
   dealerGuardDone: integer("dealer_guard_done", { mode: "boolean" }).notNull().default(false),
   replyDone: integer("reply_done", { mode: "boolean" }).notNull().default(false),
   recheckDone: integer("recheck_done", { mode: "boolean" }).notNull().default(false),
+  reviewStatus: text("review_status").notNull().default("pending"),
+  placementStatus: text("placement_status").notNull().default("pending"),
+  dealerGuardStatus: text("dealer_guard_status").notNull().default("pending"),
+  replyStatus: text("reply_status").notNull().default("pending"),
+  recheckStatus: text("recheck_status").notNull().default("pending"),
   placementCount: integer("placement_count").notNull().default(0),
   riskTag: text("risk_tag").notNull().default(""),
   notes: text("notes").notNull().default(""),
@@ -51,5 +56,16 @@ export const activityLog = sqliteTable("activity_log", {
   actor: text("actor").notNull(),
   action: text("action").notNull(),
   detail: text("detail").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const operationEvents = sqliteTable("operation_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: text("task_id").notNull(),
+  noteId: text("note_id").notNull(),
+  cycleNumber: integer("cycle_number").notNull(),
+  operationType: text("operation_type").notNull(),
+  actor: text("actor").notNull(),
+  detail: text("detail").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
