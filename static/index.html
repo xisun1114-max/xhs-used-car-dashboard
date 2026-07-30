@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="小红书评论铺设协作网页看板" />
+    <title>小红书评论铺设协作看板</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark">评</div>
+          <div>
+            <p class="eyebrow">XHS COMMENT OPERATIONS</p>
+            <h1>评论铺设协作看板</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="sync-badge"><span class="pulse"></span><span id="sourceStatus">读取数据中</span></div>
+          <button class="secondary-button" id="exportButton">导出打卡记录</button>
+        </div>
+      </header>
+
+      <nav class="tabbar" aria-label="看板页面">
+        <button class="tab active" data-view="overview">总览</button>
+        <button class="tab" data-view="tasks">协作任务 <span id="navPending" class="count-pill">--</span></button>
+        <button class="tab" data-view="guide">口径说明</button>
+      </nav>
+
+      <main>
+        <section id="overviewView" class="view active">
+          <div class="notice-card">
+            <div>
+              <strong>确认版为网页看板</strong>
+              <span>打卡会保存在当前浏览器。你确认后，部署版会接入共享数据库，让群内成员看到同一份实时状态。</span>
+            </div>
+            <button id="goTasksButton" class="text-button">去处理任务 →</button>
+          </div>
+
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">CURRENT SNAPSHOT</p>
+              <h2>评论铺设进度</h2>
+            </div>
+            <div class="date-chip">最新任务日 <strong id="latestDateLabel">--</strong></div>
+          </div>
+
+          <div class="kpi-grid">
+            <article class="kpi-card blue"><span>累计任务</span><strong id="totalTasks">--</strong><small id="batchCount">-- 个笔记批次</small></article>
+            <article class="kpi-card green"><span>累计已完成</span><strong id="totalDone">--</strong><small id="doneDelta">按打卡状态实时统计</small></article>
+            <article class="kpi-card coral"><span>累计待完成</span><strong id="totalPending">--</strong><small>需继续铺设或复核</small></article>
+            <article class="kpi-card amber"><span>累计完成率</span><strong id="completionRate">--</strong><small id="completionCopy">--</small></article>
+          </div>
+
+          <div class="analytics-grid">
+            <article class="panel completion-panel">
+              <div class="panel-title"><div><span class="eyebrow">PROGRESS</span><h3>整体完成度</h3></div><span class="panel-note">实时联动</span></div>
+              <div class="donut-layout">
+                <div id="completionDonut" class="donut"><div><strong id="donutRate">--</strong><span>已完成</span></div></div>
+                <div class="legend-list">
+                  <div><span class="legend-dot green-dot"></span><span>已完成</span><strong id="legendDone">--</strong></div>
+                  <div><span class="legend-dot coral-dot"></span><span>待完成</span><strong id="legendPending">--</strong></div>
+                  <div><span class="legend-dot blue-dot"></span><span>进行中/复核</span><strong id="legendActive">--</strong></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel latest-panel">
+              <div class="panel-title"><div><span class="eyebrow">LATEST DAY</span><h3>最新任务日</h3></div><span id="latestRatePill" class="rate-pill">--</span></div>
+              <div class="latest-numbers">
+                <div><span>任务</span><strong id="latestTasks">--</strong></div>
+                <div><span>完成</span><strong id="latestDone">--</strong></div>
+                <div><span>待办</span><strong id="latestPending">--</strong></div>
+                <div><span>笔记批次</span><strong id="latestBatches">--</strong></div>
+              </div>
+              <div class="progress-track"><div id="latestProgressBar" class="progress-fill"></div></div>
+              <p class="chart-caption" id="latestCaption">--</p>
+            </article>
+
+            <article class="panel rounds-panel">
+              <div class="panel-title"><div><span class="eyebrow">ROUND VIEW</span><h3>最新日各铺设轮次</h3></div><span class="panel-note">完成 / 待办</span></div>
+              <div id="roundBars" class="bar-list"></div>
+            </article>
+
+            <article class="panel backlog-panel">
+              <div class="panel-title"><div><span class="eyebrow">BACKLOG</span><h3>待办最多的笔记</h3></div><button id="viewAllPending" class="text-button">查看全部</button></div>
+              <div id="backlogList" class="backlog-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="tasksView" class="view">
+          <div class="section-heading task-heading">
+            <div><p class="eyebrow">COLLABORATIVE CHECK-IN</p><h2>评论铺设任务</h2><p class="subcopy">筛选到个人任务后直接打卡，修改会自动保存在当前浏览器。</p></div>
+            <div class="save-indicator" id="saveIndicator">暂无本地修改</div>
+          </div>
+
+          <div class="filter-panel">
+            <label>任务日期<select id="dateFilter"></select></label>
+            <label>铺设轮次<select id="roundFilter"><option value="">全部轮次</option></select></label>
+            <label>任务状态<select id="statusFilter"><option value="">全部状态</option><option>未开始</option><option>进行中</option><option>已完成</option><option>需复核</option></select></label>
+            <label class="search-field">达人/笔记搜索<input id="searchFilter" placeholder="输入昵称或笔记ID" /></label>
+            <button id="clearFilters" class="secondary-button">重置筛选</button>
+          </div>
+
+          <div class="task-summary-strip">
+            <div><span>筛选结果</span><strong id="filteredCount">--</strong></div>
+            <div><span>已完成</span><strong id="filteredDone">--</strong></div>
+            <div><span>待处理</span><strong id="filteredPending">--</strong></div>
+            <div class="selection-actions">
+              <span>已选 <strong id="selectedCount">0</strong> 条</span>
+              <select id="bulkStatus"><option value="">批量修改状态</option><option>未开始</option><option>进行中</option><option>已完成</option><option>需复核</option></select>
+              <input id="bulkAssignee" placeholder="批量填写执行人" />
+              <button id="applyBulk" class="primary-button">应用到已选</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th><input id="selectPage" type="checkbox" aria-label="选择本页" /></th><th>任务日期</th><th>铺设轮次</th><th>达人昵称</th><th>状态</th><th>执行人</th><th>打卡时间</th><th>评论内容</th><th>笔记</th><th>操作</th></tr></thead>
+              <tbody id="taskTableBody"></tbody>
+            </table>
+            <div id="emptyState" class="empty-state hidden"><strong>没有匹配任务</strong><span>尝试调整筛选条件。</span></div>
+          </div>
+
+          <div class="pagination"><button id="prevPage" class="secondary-button">上一页</button><span id="pageInfo">--</span><button id="nextPage" class="secondary-button">下一页</button></div>
+        </section>
+
+        <section id="guideView" class="view">
+          <div class="section-heading"><div><p class="eyebrow">RULES & SOURCES</p><h2>字段与更新口径</h2></div></div>
+          <div class="guide-grid">
+            <article class="guide-card"><span>01</span><h3>数据来源</h3><p>只读获取飞书“二手车XHS-评论占领”中的“特定话题评论”工作表。本网页不读取G—J隐藏列。</p></article>
+            <article class="guide-card"><span>02</span><h3>铺设次数</h3><p>表示第几轮铺设，例如“2次”代表第二轮，不代表评论条数。</p></article>
+            <article class="guide-card"><span>03</span><h3>完成状态</h3><p>初始状态来自飞书E列checkbox；网页中可标记未开始、进行中、已完成或需复核。</p></article>
+            <article class="guide-card"><span>04</span><h3>与负评延续隔离</h3><p>小组铺设状态只用于协作反馈，不参与“是否延续负评监测”的任何判断。</p></article>
+            <article class="guide-card"><span>05</span><h3>确认版保存</h3><p>当前确认版把修改保存在本机浏览器。部署后接入共享数据库，所有群成员使用同一份实时状态。</p></article>
+            <article class="guide-card"><span>06</span><h3>每日更新</h3><p>自动读取飞书最新快照，保留已打卡记录，并刷新总览、最新任务日、轮次进度和待办排行。</p></article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="taskDialog" class="task-dialog">
+      <form method="dialog"><button class="dialog-close" aria-label="关闭">×</button></form>
+      <div id="dialogContent"></div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

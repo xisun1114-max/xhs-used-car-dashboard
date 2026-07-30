@@ -1,0 +1,55 @@
+import { sql } from "drizzle-orm";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const dashboardMeta = sqliteTable("dashboard_meta", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const maintenanceTasks = sqliteTable("maintenance_tasks", {
+  taskId: text("task_id").primaryKey(),
+  noteId: text("note_id").notNull(),
+  taskDate: text("task_date").notNull(),
+  cycleNumber: integer("cycle_number").notNull().default(1),
+  title: text("title").notNull(),
+  nickname: text("nickname").notNull().default(""),
+  link: text("link").notNull(),
+  publishDate: text("publish_date").notNull(),
+  priority: text("priority").notNull(),
+  score: integer("score").notNull().default(0),
+  cadenceDays: integer("cadence_days").notNull().default(1),
+  reasons: text("reasons").notNull().default("[]"),
+  spend3d: real("spend_3d").notNull().default(0),
+  spend7d: real("spend_7d").notNull().default(0),
+  spendTotal: real("spend_total").notNull().default(0),
+  activeDays7d: integer("active_days_7d").notNull().default(0),
+  actionClicks3d: integer("action_clicks_3d").notNull().default(0),
+  commentsTotal: integer("comments_total").notNull().default(0),
+  comments3d: integer("comments_3d"),
+  comments7d: integer("comments_7d"),
+  status: text("status").notNull().default("pending"),
+  owner: text("owner").notNull().default(""),
+  reviewDone: integer("review_done", { mode: "boolean" }).notNull().default(false),
+  placementDone: integer("placement_done", { mode: "boolean" }).notNull().default(false),
+  dealerGuardDone: integer("dealer_guard_done", { mode: "boolean" }).notNull().default(false),
+  replyDone: integer("reply_done", { mode: "boolean" }).notNull().default(false),
+  recheckDone: integer("recheck_done", { mode: "boolean" }).notNull().default(false),
+  placementCount: integer("placement_count").notNull().default(0),
+  riskTag: text("risk_tag").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  version: integer("version").notNull().default(1),
+  completedAt: text("completed_at"),
+  completedComments: integer("completed_comments"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const activityLog = sqliteTable("activity_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: text("task_id").notNull(),
+  actor: text("actor").notNull(),
+  action: text("action").notNull(),
+  detail: text("detail").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
