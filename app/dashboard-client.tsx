@@ -109,17 +109,21 @@ export function DashboardClient() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const fallbackResponse = await fetch("/data/dashboard.json", { cache: "no-store" });
-      const fallback = (await fallbackResponse.json()) as DashboardData;
-      await fetch("/api/sync", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(fallback),
-      });
       const apiResponse = await fetch("/api/dashboard", { cache: "no-store" });
       const api = apiResponse.ok ? ((await apiResponse.json()) as DashboardData) : { tasks: [] };
-      setData(api.tasks?.length ? api : fallback);
-      if (!api.tasks?.length) setMessage("当前为只读数据预览，协作保存服务暂未连接。");
+      if (api.tasks?.length) {
+        setData(api);
+      } else {
+        const fallbackResponse = await fetch("/data/dashboard.json", { cache: "no-store" });
+        const fallback = (await fallbackResponse.json()) as DashboardData;
+        await fetch("/api/sync", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(fallback),
+        });
+        setData(fallback);
+        setMessage("协作数据已完成首次初始化。");
+      }
     } catch {
       try {
         const fallback = await fetch("/data/dashboard.json", { cache: "no-store" }).then((res) => res.json());
