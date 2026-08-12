@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DashboardClient } from "./dashboard-client";
+import { SiteNav } from "./site-nav";
 
 export const metadata: Metadata = {
   title: "供应商笔记评论维护工作台",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <DashboardClient />;
+  return <><SiteNav active="maintenance" /><DashboardClient /></>;
 }
