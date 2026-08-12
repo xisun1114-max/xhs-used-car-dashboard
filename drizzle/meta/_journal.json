@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785407452521,
+      "tag": "0000_comment-maintenance-init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785412952408,
+      "tag": "0001_operation-history-and-step-status",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785414481174,
+      "tag": "0002_overall-status-rich-notes",
+      "breakpoints": true
+    }
+  ]
+}
