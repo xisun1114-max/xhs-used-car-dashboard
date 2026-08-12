@@ -142,6 +142,17 @@ export async function ensureSchema(database = getD1()) {
       detail TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    database.prepare(`CREATE TABLE IF NOT EXISTS negative_monitor_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      note_id TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      from_deadline TEXT NOT NULL DEFAULT '',
+      to_deadline TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     database.prepare("CREATE INDEX IF NOT EXISTS tasks_note_cycle_idx ON maintenance_tasks(note_id, cycle_number DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS tasks_status_priority_idx ON maintenance_tasks(status, priority, score DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS activity_task_idx ON activity_log(task_id, id DESC)"),
@@ -149,6 +160,9 @@ export async function ensureSchema(database = getD1()) {
     database.prepare("CREATE INDEX IF NOT EXISTS upload_task_idx ON note_uploads(task_id, id DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS risk_alert_status_idx ON risk_alert_tasks(delivery_status, resolution, spend DESC)"),
     database.prepare("CREATE INDEX IF NOT EXISTS risk_alert_activity_idx ON risk_alert_activity(note_id, id DESC)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS negative_monitor_status_idx ON negative_monitor_tasks(status, new_deadline, spend_3d DESC)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS negative_monitor_note_idx ON negative_monitor_tasks(note_id, generated_at DESC)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS negative_monitor_history_note_idx ON negative_monitor_history(note_id, id DESC)"),
   ]);
   for (const statement of [
     "ALTER TABLE maintenance_tasks ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'",
