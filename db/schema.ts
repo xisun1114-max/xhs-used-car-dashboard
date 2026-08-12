@@ -52,6 +52,44 @@ export const maintenanceTasks = sqliteTable("maintenance_tasks", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const negativeMonitorTasks = sqliteTable("negative_monitor_tasks", {
+  taskId: text("task_id").primaryKey(),
+  noteId: text("note_id").notNull(),
+  generatedAt: text("generated_at").notNull(),
+  mode: text("mode").notNull().default("scheduled"),
+  nickname: text("nickname").notNull().default(""),
+  link: text("link").notNull().default(""),
+  category: text("category").notNull().default(""),
+  publishDate: text("publish_date").notNull().default(""),
+  currentDeadline: text("current_deadline").notNull().default(""),
+  judgmentNode: text("judgment_node").notNull().default(""),
+  deliveryStatus: text("delivery_status").notNull().default(""),
+  spend3d: real("spend_3d").notNull().default(0),
+  commentsTotal: integer("comments_total").notNull().default(0),
+  comments3d: integer("comments_3d"),
+  comments7d: integer("comments_7d"),
+  extensionReason: text("extension_reason").notNull().default(""),
+  newDeadline: text("new_deadline").notNull().default(""),
+  status: text("status").notNull().default("pending"),
+  owner: text("owner").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  version: integer("version").notNull().default(1),
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const negativeMonitorHistory = sqliteTable("negative_monitor_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: text("task_id").notNull(),
+  noteId: text("note_id").notNull(),
+  actor: text("actor").notNull(),
+  action: text("action").notNull(),
+  fromDeadline: text("from_deadline").notNull().default(""),
+  toDeadline: text("to_deadline").notNull().default(""),
+  detail: text("detail").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 export const activityLog = sqliteTable("activity_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   taskId: text("task_id").notNull(),

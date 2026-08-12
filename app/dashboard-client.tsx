@@ -97,6 +97,7 @@ export function DashboardClient() {
   const [actor, setActor] = useState("");
   const [nameDraft, setNameDraft] = useState("");
   const [showName, setShowName] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [selected, setSelected] = useState<Task | null>(null);
   const [priority, setPriority] = useState("all");
   const [status, setStatus] = useState("active");
@@ -296,6 +297,7 @@ export function DashboardClient() {
             <span>聚光 {freshness.spotlight_as_of || "—"}</span>
             <span>蒲公英 {freshness.pgy_as_of || "—"}</span>
           </div>
+          <button className="dashboard-guide-button" onClick={() => setShowGuide(true)}>看板说明</button>
           <button className="actor-button" onClick={() => setShowName(true)}>
             <span className="avatar">{actor ? actor.slice(0, 1) : "?"}</span>
             {actor || "选择操作人"}
@@ -377,6 +379,7 @@ export function DashboardClient() {
 
       {message && <div className={`toast ${message.includes("失败") || message.includes("只读") ? "warning" : ""}`}>{message}</div>}
       {showName && <NameDialog value={nameDraft} onChange={setNameDraft} onSave={saveActor} onClose={() => actor && setShowName(false)} />}
+      {showGuide && <div className="negative-modal-backdrop" onClick={() => setShowGuide(false)}><section className="negative-guide maintenance-guide" onClick={(event) => event.stopPropagation()}><button className="guide-close" onClick={() => setShowGuide(false)}>×</button><span className="eyebrow">DASHBOARD GUIDE</span><h2>评论维护看板说明</h2><p className="guide-lead">从 2026-06-01 起发布的供应商笔记中，使用最新聚光投放与蒲公英评论数据筛选任务；先判断优先级，再按规则分散 P1/P2 的执行日期。</p><div className="guide-flow"><article><b>01</b><strong>数据范围</strong><span>供应商笔记、发布日 ≥ 2026-06-01；按笔记 ID 关联聚光和蒲公英</span></article><i>→</i><article><b>02</b><strong>优先级判断</strong><span>先判 P0，再判 P1，最后判 P2；不满足任一级别则不生成任务</span></article><i>→</i><article><b>03</b><strong>执行节奏</strong><span>P0 每日；P1 按笔记 ID 分散到 3 日周期；P2 分散到 7 日周期</span></article><i>→</i><article><b>04</b><strong>协作提醒</strong><span>日常看板 PASS 后同步，并仅向 F66-XHS 发送任务提醒</span></article></div><div className="logic-cards"><article><span>P0｜满足任一</span><ul><li>近 3 日消费排名前 5</li><li>累计评论排名前 5 且近 3 日仍有消费</li><li>近 3 日新增评论 ≥ 3 且仍有消费</li><li>近 3 日消费 ≥ 100 元且累计评论 ≥ 20</li></ul></article><article><span>P1｜无 P0 且满足任一</span><ul><li>近 3 日消费 ≥ 20 元</li><li>近 3 日新增评论 ≥ 1</li><li>近 7 日聚光消费 ≥ 100 元</li></ul></article><article><span>P2｜无 P0/P1 且全部满足</span><ul><li>累计评论 ≥ 20</li><li>近 7 日消费 = 0</li><li>近 7 日新增评论 = 0</li><li>作为停投高评论笔记每 7 日巡检</li></ul></article><article><span>排序与去重</span><ul><li>排序：优先级 → 综合分 → 近 3 日消费 → 评论总量</li><li>综合分含消费排名、评论排名、增量、活跃天数和组合加分</li><li>同一未完成任务只刷新数据，不重复建轮次</li><li>已完成后仅满足再入场规则才开启下一轮</li></ul></article></div><div className="guide-grid"><article><h3>标准操作</h3><ol><li>先处理 P0，再看价值与风险矩阵</li><li>认领并核对新增评论与风险标签</li><li>按实际动作记录铺设、防车商、置顶或回复</li><li>填写备注，选择“已完成”或“本轮无需处理”</li></ol></article><article><h3>不会生成任务</h3><ul><li>非供应商或早于范围起始日</li><li>不满足 P0、P1、P2 任一规则</li><li>P1/P2 当天未轮到其分散执行日</li><li>来源数据缺失或主流程非 PASS</li></ul></article><article><h3>通知与留痕</h3><ul><li>评论维护提醒只发送 F66-XHS</li><li>数据指纹相同不会重复提醒</li><li>主流程非 PASS 不发送旧数据</li><li>操作次数、负责人、备注和每轮状态均持久保存</li></ul></article></div></section></div>}
       {selected && <TaskDrawer task={selected} actor={actor} operations={(data.operations || []).filter((event) => event.note_id === selected.note_id)} saving={saving === selected.task_id} operationSaving={operationSaving} onClose={() => setSelected(null)} onUpdate={updateTask} onAddOperation={addOperation} onRemoveOperation={removeOperation} />}
     </main>
   );

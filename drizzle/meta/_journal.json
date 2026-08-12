@@ -22,6 +22,20 @@
       "when": 1785414481174,
       "tag": "0002_overall-status-rich-notes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786524477057,
+      "tag": "0003_superb_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786531082083,
+      "tag": "0004_wise_black_panther",
+      "breakpoints": true
     }
   ]
 }
