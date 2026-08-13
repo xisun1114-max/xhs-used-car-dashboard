@@ -4,7 +4,7 @@ import "./risk-alert.css";
 
 export const metadata: Metadata = {
   title: "高成本预警协作看板",
-  description: "小红书聚光投流高成本笔记的多人协作处理工作台",
+  description: "小红书聚光投流高成本笔记的动态预警与多人协作处理站点",
 };
 
 export default function RiskAlertsPage() {
